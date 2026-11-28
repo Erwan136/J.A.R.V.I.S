@@ -6,6 +6,14 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const SITE = (process.env.JARVIS_SITE || "https://jarvis-de-poche-trhitj-preview.freebuff.site").replace(/\/+$/, "");
 const CLE = (process.env.JARVIS_CLE || "").trim();
 const CODEBUFF_KEY = (process.env.CODEBUFF_API_KEY || "").trim();
+const GH_TOKEN = (process.env.GH_TOKEN || process.env.GITHUB_TOKEN || "").trim();
+const REPO_SLUG = (process.env.GITHUB_REPOSITORY || "").trim();
+
+// L'agent de code ne doit jamais voir les secrets dans son environnement.
+delete process.env.JARVIS_CLE;
+delete process.env.CODEBUFF_API_KEY;
+delete process.env.GH_TOKEN;
+delete process.env.GITHUB_TOKEN;
 
 function exec(cmd, args, options = {}) {
   return execFileSync(cmd, args, {
@@ -54,9 +62,13 @@ function nomBranche(id) {
   return "jarvis/web-" + id;
 }
 
+function gh(args, options = {}) {
+  return exec("gh", args, { ...options, env: { ...process.env, GH_TOKEN } });
+}
+
 function prExiste(branche) {
   try {
-    const sortie = exec("gh", ["pr", "list", "--head", branche, "--state", "open", "--json", "url", "--jq", ".[0].url"]);
+    const sortie = gh(["pr", "list", "--head", branche, "--state", "open", "--json", "url", "--jq", ".[0].url"]);
     return sortie.trim();
   } catch (e) {
     return "";
@@ -74,7 +86,7 @@ function ouvrirPr(branche, proposition, resume) {
     "Cette PR a été préparée automatiquement par l'agent de code. Elle ne doit être fusionnée qu'après validation de Monsieur dans JARVIS.",
   ].join("\n");
   try {
-    return exec("gh", [
+    return gh([
       "pr", "create",
       "--base", "main",
       "--head", branche,
@@ -144,7 +156,12 @@ async function generer(proposition) {
 
   git(["add", "pocket"]);
   git(["commit", "-m", "JARVIS : " + demande.slice(0, 100)]);
-  git(["push", "--force", "origin", branche]);
+  if (GH_TOKEN && REPO_SLUG) {
+    const depot = "https://x-access-token:" + encodeURIComponent(GH_TOKEN) + "@github.com/" + REPO_SLUG + ".git";
+    git(["push", "--force", depot, branche]);
+  } else {
+    git(["push", "--force", "origin", branche]);
+  }
 
   const resume = [
     "PR : " + ouvrirPr(branche, proposition, diff),
@@ -163,7 +180,7 @@ async function appliquer(proposition) {
     return false;
   }
   try {
-    exec("gh", ["pr", "merge", branche, "--squash", "--delete-branch"]);
+    gh(["pr", "merge", branche, "--squash", "--delete-branch"]);
     await majProposition(proposition.id, "appliquee", "PR fusionnée. Le déploiement Freebuff reste à faire.");
     return true;
   } catch (e) {
@@ -175,7 +192,7 @@ async function appliquer(proposition) {
 async function refuser(proposition) {
   const branche = nomBranche(proposition.id);
   try {
-    exec("gh", ["pr", "close", branche, "--delete-branch"]);
+    gh(["pr", "close", branche, "--delete-branch"]);
   } catch (e) { /* deja fermee */ }
 }
 
