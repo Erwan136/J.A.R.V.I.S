@@ -379,7 +379,6 @@ async function refuser(proposition) {
 }
 
 async function principal() {
-  if (!GEM_KEY) throw new Error("GEMINI_API_KEY manquant dans les secrets GitHub");
   const liste = await propositions();
 
   for (const p of liste.filter((x) => x.cible === "web" && x.statut === "validee_web")) {
@@ -395,6 +394,10 @@ async function principal() {
   }
   const premiere = aGenerer.sort((a, b) => Number(a.id) - Number(b.id))[0];
   console.log("Préparation de la proposition", premiere.id, ":", premiere.demande);
+  if (!GEM_KEY) {
+    await majProposition(premiere.id, "refusee", "Clé Gemini absente : ajoute GEMINI_API_KEY dans GitHub → Settings → Secrets and variables → Actions.");
+    throw new Error("GEMINI_API_KEY manquant dans les secrets GitHub");
+  }
   try {
     await generer(premiere);
   } catch (e) {
