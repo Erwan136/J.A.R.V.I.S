@@ -62,7 +62,7 @@ function slugMatiere(s) {
     .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "");
 }
 
-const VERSION = "v39";
+const VERSION = "v40";
 
 const CHEMINS_PRIVES = [
   "/ask", "/last", "/stt", "/tts", "/sauvegardes", "/propositions",
@@ -1665,7 +1665,7 @@ async function discuterFlux(texte, env, ctx, canal, options, attente, onTexte) {
   return complet.trim() || "Je n'ai pas pu terminer cette action, Monsieur.";
 }
 
-async function transcrire(base64, mime, env, attente) {
+async function transcrireGemini(base64, mime, env, attente) {
   const modele = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
   const url = "https://generativelanguage.googleapis.com/v1beta/models/"
     + modele + ":generateContent?key=" + env.GEMINI_API_KEY;
@@ -1697,6 +1697,50 @@ async function transcrire(base64, mime, env, attente) {
   const texte = parts.map((p) => p.text || "").join(" ").trim();
   if (!texte || texte === "(vide)") return "";
   return texte;
+}
+
+async function transcrireGroq(base64, mime, env) {
+  const octets = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const extensions = {
+    "audio/mp4": "m4a", "audio/mpeg": "mp3", "audio/webm": "webm",
+    "audio/ogg": "ogg", "audio/wav": "wav", "audio/x-wav": "wav",
+  };
+  const forme = new FormData();
+  forme.append("file", new Blob([octets], { type: mime }), "audio." + (extensions[mime] || "m4a"));
+  forme.append("model", env.GROQ_STT_MODEL || "whisper-large-v3-turbo");
+  forme.append("language", "fr");
+  forme.append("response_format", "json");
+  forme.append("temperature", "0");
+  const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + env.GROQ_API_KEY },
+    body: forme,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error("Groq stt " + r.status + " " + JSON.stringify(data).slice(0, 160));
+  return String(data.text || "").trim();
+}
+
+// Gemini d'abord ; si la cle Gemini est absente ou saturee (429), on passe par Groq Whisper.
+async function transcrire(base64, mime, env, attente) {
+  let erreurGemini = null;
+  if (env.GEMINI_API_KEY) {
+    try {
+      return await transcrireGemini(base64, mime, env, attente);
+    } catch (e) {
+      erreurGemini = e;
+    }
+  }
+  if (env.GROQ_API_KEY) {
+    try {
+      return await transcrireGroq(base64, mime, env);
+    } catch (e) {
+      const avant = erreurGemini ? String((erreurGemini && erreurGemini.message) || erreurGemini) + " ; " : "";
+      throw new Error(avant + String((e && e.message) || e));
+    }
+  }
+  if (erreurGemini) throw erreurGemini;
+  throw new Error("aucune cle de transcription (GEMINI_API_KEY ou GROQ_API_KEY)");
 }
 
 async function demanderAFish(texte, env) {
@@ -1827,6 +1871,7 @@ export default {
         ok: true,
         version: VERSION,
         gemini: !!env.GEMINI_API_KEY,
+        groq: !!env.GROQ_API_KEY,
         fish: !!env.FISH_API_KEY,
         voix: !!env.FISH_VOICE_ID,
         memoire: !!env.DB,
@@ -2090,7 +2135,7 @@ export default {
           const maintenant = new Date().toISOString();
           if (id) {
             const statut = String(b.statut || "");
-            if (!["a_generer", "attente", "validee", "refusee", "appliquee"].includes(statut)) {
+            if (!["a_generer", "a_generer_web", "attente", "attente_web", "validee", "validee_web", "refusee", "appliquee"].includes(statut)) {
               return json({ erreur: "statut inconnu" }, 400);
             }
             const resume = b.resume ? String(b.resume).slice(0, 4000) : null;
