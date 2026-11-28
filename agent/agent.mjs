@@ -10,6 +10,7 @@ const GEM_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const MODELE = (process.env.GEMINI_MODEL || "gemini-3.5-flash-lite").trim();
 const GROQ_KEY = (process.env.GROQ_API_KEY || "").trim();
 const GROQ_MODELE = (process.env.GROQ_MODEL || "openai/gpt-oss-120b").trim();
+const GEM_BASE = (process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/, "");
 let fournisseur = GEM_KEY ? "gemini" : "groq";
 const GH_TOKEN = (process.env.GH_TOKEN || process.env.GITHUB_TOKEN || "").trim();
 const REPO_SLUG = (process.env.GITHUB_REPOSITORY || "").trim();
@@ -250,7 +251,7 @@ const CONSIGNE = [
 ].join("\n");
 
 async function appelGemini(contents) {
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(MODELE)
+  const url = GEM_BASE + "/models/" + encodeURIComponent(MODELE)
     + ":generateContent?key=" + encodeURIComponent(GEM_KEY);
   const corps = {
     systemInstruction: { parts: [{ text: CONSIGNE }] },

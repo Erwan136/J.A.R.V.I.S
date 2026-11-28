@@ -62,7 +62,7 @@ function slugMatiere(s) {
     .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "");
 }
 
-const VERSION = "v43";
+const VERSION = "v47";
 
 const CHEMINS_PRIVES = [
   "/ask", "/last", "/stt", "/tts", "/sauvegardes", "/propositions",
@@ -861,6 +861,35 @@ async function propositionsTable(env) {
   } catch (e) { /* deja presente */ }
 }
 
+// Lance l'agent GitHub (workflow jarvis-code) sans passer par l'interface GitHub.
+async function declencherAgent(env, execution) {
+  const jeton = String((env && env.GH_AGENT_TOKEN) || "").trim();
+  if (!jeton) return false;
+  const tache = (async () => {
+    try {
+      const r = await fetch(
+        "https://api.github.com/repos/Erwan136/J.A.R.V.I.S/actions/workflows/jarvis-code.yml/dispatches",
+        {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer " + jeton,
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "JARVIS-de-poche",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ref: "main" }),
+        },
+      );
+      return r.ok;
+    } catch (e) {
+      return false;
+    }
+  })();
+  if (execution && execution.waitUntil) execution.waitUntil(tache);
+  return await tache;
+}
+
 async function filTable(env) {
   await env.DB.prepare(
     "CREATE TABLE IF NOT EXISTS fil (id INTEGER PRIMARY KEY AUTOINCREMENT, canal TEXT, role TEXT, texte TEXT, cree TEXT)",
@@ -1395,6 +1424,7 @@ async function executerOutil(nom, args, env, attente) {
       const info = await env.DB.prepare(
         "INSERT INTO propositions (demande, resume, statut, cible, cree, maj) VALUES (?, '', 'a_generer_web', 'web', ?, ?)",
       ).bind(demande.slice(0, 500), maintenant, maintenant).run();
+      await declencherAgent(env);
       return "proposition " + (info.meta && info.meta.last_row_id)
         + " enregistree : l'agent de code prepare la modification, puis Monsieur la valide dans le panneau.";
     } catch (e) {
@@ -1909,6 +1939,7 @@ export default {
         ecole: !!env.GOOGLE2_REFRESH_TOKEN,
         ecoledirecte: !!(env.ECOLODIRECTE_ID && env.ECOLODIRECTE_MDP),
         modele: env.GEMINI_MODEL || "gemini-3.5-flash-lite",
+        agentGithub: !!env.GH_AGENT_TOKEN,
         protege: !!env.APP_TOKEN,
       });
     }
@@ -2172,14 +2203,17 @@ export default {
             await env.DB.prepare(
               "UPDATE propositions SET statut = ?, resume = COALESCE(?, resume), maj = ? WHERE id = ?",
             ).bind(statut, resume, maintenant, id).run();
+            if (statut === "validee_web" || statut === "refusee") await declencherAgent(env, execution);
             return json({ ok: true, id, statut });
           }
           const demande = String(b.demande || "").trim();
           if (!demande) return json({ erreur: "demande vide" }, 400);
           const cible = String(b.cible || "pc") === "web" ? "web" : "pc";
+          const statut = cible === "web" ? "a_generer_web" : "attente";
           const info = await env.DB.prepare(
-            "INSERT INTO propositions (demande, resume, statut, cible, cree, maj) VALUES (?, ?, 'attente', ?, ?, ?)",
-          ).bind(demande.slice(0, 500), String(b.resume || "").slice(0, 4000), cible, maintenant, maintenant).run();
+            "INSERT INTO propositions (demande, resume, statut, cible, cree, maj) VALUES (?, ?, ?, ?, ?, ?)",
+          ).bind(demande.slice(0, 500), String(b.resume || "").slice(0, 4000), statut, cible, maintenant, maintenant).run();
+          if (cible === "web") await declencherAgent(env, execution);
           return json({ ok: true, id: info.meta && info.meta.last_row_id });
         }
         if (request.method === "DELETE") {
