@@ -1,0 +1,14 @@
+{
+  "name": "jarvis-pocket",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild worker.js --bundle --format=esm --outfile=dist/worker.js"
+  },
+  "dependencies": {
+    "@winding-labs/griffin": "0.6.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

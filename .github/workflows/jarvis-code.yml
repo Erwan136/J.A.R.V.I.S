@@ -1,0 +1,45 @@
+name: JARVIS code agent
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: jarvis-code-agent
+  cancel-in-progress: false
+
+jobs:
+  coder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: agent/package-lock.json
+
+      - name: Installer l'agent Codebuff
+        working-directory: agent
+        run: npm ci
+
+      - name: Préparer ou appliquer une proposition
+        working-directory: agent
+        env:
+          CODEBUFF_API_KEY: ${{ secrets.CODEBUFF_API_KEY }}
+          JARVIS_CLE: ${{ secrets.JARVIS_CLE }}
+          JARVIS_SITE: ${{ vars.JARVIS_SITE }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node agent.mjs

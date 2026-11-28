@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Voix Piper : 63 Mo, retéléchargées par scripts/setup.ps1
+voices/*.onnx
+voices/*.onnx.json
+
+# Mémoire locale des conversations
+memory.db
+config.toml
+
+# Secrets (clé Groq, etc.)
+.env
+
+# Worker pocket/ : dependances installees et bundle de deploiement (npm run build)
+pocket/node_modules/
+pocket/dist/
+agent/node_modules/
