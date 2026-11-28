@@ -1,0 +1,3370 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#04070d" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="JARVIS" />
+<meta name="mobile-web-app-capable" content="yes" />
+<title>J.A.R.V.I.S.</title>
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icone-180.png" />
+<link rel="icon" type="image/png" href="icons/favicon-64.png" />
+<link rel="manifest" href="manifest.webmanifest" />
+<style>
+  :root {
+    color-scheme: dark;
+    --cy: #5fe6ff;
+    --cy-dim: #2b8ea8;
+    --gold: #ffb347;
+    --rouge: #ff8a7a;
+    --bg: #04070d;
+    --line: rgba(95, 230, 255, 0.16);
+    --txt: #d7e9f2;
+    --muted: #6c8296;
+    --mono: "SF Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--txt);
+    font-family: var(--mono); letter-spacing: 0.02em; overflow: hidden;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% 0%, rgba(95, 230, 255, 0.10), transparent 70%),
+      radial-gradient(ellipse 60% 40% at 50% 110%, rgba(255, 179, 71, 0.07), transparent 70%),
+      repeating-linear-gradient(0deg, rgba(95, 230, 255, 0.035) 0 1px, transparent 1px 46px),
+      repeating-linear-gradient(90deg, rgba(95, 230, 255, 0.035) 0 1px, transparent 1px 46px);
+    display: flex; flex-direction: column; height: 100dvh;
+  }
+  [hidden] { display: none !important; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(95, 230, 255, 0.06), transparent);
+    position: relative;
+  }
+  header::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cy), transparent); opacity: 0.5;
+  }
+  .marque { font-size: 15px; letter-spacing: 0.34em; color: var(--cy); text-shadow: 0 0 14px rgba(95, 230, 255, 0.55); }
+  .marque small { display: block; font-size: 9px; letter-spacing: 0.2em; color: var(--muted); margin-top: 3px; }
+  .hud-droite { display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--muted); letter-spacing: 0.14em; }
+  #horloge { color: var(--gold); }
+  .etat-pastille { display: inline-flex; align-items: center; gap: 6px; }
+  .etat-pastille i { width: 6px; height: 6px; border-radius: 50%; background: var(--cy); box-shadow: 0 0 8px var(--cy); animation: battement 2.4s ease-in-out infinite; }
+  @keyframes battement { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+  .hud-bouton {
+    height: 28px; min-width: 28px; padding: 0 8px; font-size: 13px; border-radius: 4px;
+    border: 1px solid var(--line); background: rgba(6, 12, 20, 0.8); color: var(--cy-dim);
+    cursor: pointer; display: grid; place-items: center; font-family: var(--mono);
+  }
+  .hud-bouton:active { background: rgba(95, 230, 255, 0.18); }
+  .hud-bouton { position: relative; }
+  .hud-bouton i {
+    position: absolute; top: -5px; right: -5px; font-style: normal; background: var(--gold); color: #10161f;
+    font-size: 9px; font-weight: 600; min-width: 14px; height: 14px; border-radius: 7px; padding: 0 3px;
+    display: grid; place-items: center; letter-spacing: 0;
+  }
+
+  .reacteur { position: relative; height: 104px; display: grid; place-items: center; flex: 0 0 auto; cursor: pointer; transition: height 0.25s ease; }
+  .reacteur .anneau { position: absolute; border-radius: 50%; border: 1px solid rgba(95, 230, 255, 0.22); }
+  .a1 { width: 94px; height: 94px; animation: tourne 14s linear infinite; border-style: dashed; }
+  .a2 { width: 70px; height: 70px; border-color: rgba(95, 230, 255, 0.35); animation: tourne 9s linear infinite reverse; }
+  .a3 { width: 46px; height: 46px; border-color: rgba(255, 179, 71, 0.35); }
+  .noyau {
+    width: 25px; height: 25px; border-radius: 50%;
+    background: radial-gradient(circle, #ffffff 0%, var(--cy) 45%, rgba(95, 230, 255, 0.1) 72%);
+    box-shadow: 0 0 22px rgba(95, 230, 255, 0.85), 0 0 48px rgba(95, 230, 255, 0.35);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .pense .a1 { animation-duration: 1.6s; }
+  .pense .a2 { animation-duration: 1.1s; }
+  .pense .a3 { border-color: var(--gold); }
+  .pense .noyau { transform: scale(1.12); box-shadow: 0 0 30px rgba(255, 179, 71, 0.9), 0 0 60px rgba(255, 179, 71, 0.35); }
+  .parle .noyau { animation: envoie 0.9s ease-in-out infinite; }
+  .ecoute .a2 { animation-duration: 2.2s; }
+  .ecoute .noyau { animation: ecoute 1.1s ease-in-out infinite; }
+  @keyframes tourne { to { transform: rotate(360deg); } }
+  @keyframes envoie {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(95, 230, 255, 0.7); }
+    50% { transform: scale(1.25); box-shadow: 0 0 36px rgba(95, 230, 255, 1), 0 0 70px rgba(95, 230, 255, 0.4); }
+  }
+  @keyframes ecoute {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 18px rgba(255, 179, 71, 0.75); }
+    50% { transform: scale(1.3); box-shadow: 0 0 40px rgba(255, 179, 71, 1), 0 0 70px rgba(255, 179, 71, 0.4); }
+  }
+  #statut { position: absolute; bottom: 2px; font-size: 9px; letter-spacing: 0.24em; color: var(--muted); text-transform: uppercase; text-align: center; }
+  body.mode-doc .reacteur { height: 62px; }
+  body.mode-doc .reacteur .a1 { width: 58px; height: 58px; }
+  body.mode-doc .reacteur .a2 { width: 44px; height: 44px; }
+  body.mode-doc .reacteur .a3 { width: 30px; height: 30px; }
+  body.mode-doc .reacteur .noyau { width: 15px; height: 15px; }
+  body.mode-doc #statut { display: none; }
+
+  .barre-mode { display: flex; gap: 8px; padding: 0 14px 8px; flex: 0 0 auto; }
+  .mode {
+    flex: 1 1 0; height: 34px; font-size: 9.5px; letter-spacing: 0.16em;
+    border: 1px solid var(--line); background: rgba(6, 12, 20, 0.8);
+    color: var(--muted); border-radius: 3px; font-family: var(--mono); cursor: pointer;
+  }
+  .mode.actif { color: var(--cy); border-color: rgba(95, 230, 255, 0.55); background: rgba(95, 230, 255, 0.1); box-shadow: inset 0 0 18px rgba(95, 230, 255, 0.12); }
+  .mode[data-mode="fluide"].actif { color: var(--gold); border-color: rgba(255, 179, 71, 0.55); background: rgba(255, 179, 71, 0.1); box-shadow: inset 0 0 18px rgba(255, 179, 71, 0.12); }
+  .voix-question {
+    flex: 0 0 auto; height: 46px; min-width: 46px; padding: 0 8px; font-size: 9px; letter-spacing: 0.06em;
+    border: 1px solid rgba(95, 230, 255, 0.45); background: rgba(95, 230, 255, 0.1);
+    color: var(--cy); border-radius: 3px; font-family: var(--mono); cursor: pointer; white-space: nowrap;
+  }
+  .voix-question.muet { color: var(--muted); border-color: var(--line); background: rgba(6, 12, 20, 0.8); }
+  .voix-question:active { background: rgba(95, 230, 255, 0.2); }
+
+  .fil { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6px 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .fil::-webkit-scrollbar { width: 3px; }
+  .fil::-webkit-scrollbar-thumb { background: rgba(95, 230, 255, 0.25); }
+  .vide { margin: auto; text-align: center; color: var(--muted); font-size: 11px; letter-spacing: 0.16em; line-height: 2; text-transform: uppercase; }
+  .vide b { display: block; color: var(--cy); font-weight: 500; letter-spacing: 0.3em; margin-bottom: 10px; }
+
+  .ligne { display: flex; flex-direction: column; gap: 5px; max-width: 92%; animation: apparait 0.28s ease both; }
+  @keyframes apparait { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .ligne.moi { align-self: flex-end; align-items: flex-end; }
+  .ligne.lui { align-self: flex-start; align-items: flex-start; }
+  .entete-ligne { display: flex; gap: 8px; align-items: baseline; font-size: 9px; letter-spacing: 0.22em; color: var(--muted); text-transform: uppercase; }
+  .moi .entete-ligne b { color: var(--gold); font-weight: 500; }
+  .lui .entete-ligne b { color: var(--cy); font-weight: 500; }
+  .bulle { padding: 11px 14px; font-size: 14.5px; line-height: 1.55; border: 1px solid var(--line); border-radius: 4px; background: rgba(9, 16, 26, 0.82); position: relative; }
+  .moi .bulle { border-color: rgba(255, 179, 71, 0.28); border-right: 2px solid var(--gold); background: rgba(28, 22, 10, 0.55); color: #f4e6cf; }
+  .lui .bulle { border-left: 2px solid var(--cy); }
+  .lui .bulle::before { content: ""; position: absolute; left: -1px; top: -1px; width: 10px; height: 10px; border-left: 1px solid var(--cy); border-top: 1px solid var(--cy); opacity: 0.8; }
+  .note { font-size: 11px; color: var(--muted); letter-spacing: 0.1em; text-align: center; align-self: center; }
+  .note.err { color: #ff8a7a; }
+
+  /* ---------- mode question : vraie page de lecture ---------- */
+  .fil.doc { padding: 14px 18px 28px; gap: 20px; }
+  .fil.doc .ligne { max-width: 100%; width: 100%; }
+  .fil.doc .ligne.moi { align-items: flex-end; }
+  .fil.doc .moi .bulle { max-width: 82%; }
+  .carte {
+    width: 100%; background: rgba(8, 14, 23, 0.9);
+    border: 1px solid rgba(95, 230, 255, 0.14); border-radius: 12px;
+    padding: 18px 20px 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    border-left: 2px solid var(--cy);
+  }
+  .carte-tete { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .carte-tete b { font-size: 9.5px; letter-spacing: 0.26em; color: var(--cy); font-weight: 500; text-transform: uppercase; }
+  .carte-tete span { font-size: 9.5px; color: var(--muted); letter-spacing: 0.14em; }
+  .actes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(95, 230, 255, 0.1); }
+  .acte {
+    height: 28px; padding: 0 11px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    border: 1px solid var(--line); background: rgba(6, 12, 20, 0.85); color: var(--cy-dim);
+    border-radius: 20px; font-family: var(--mono); cursor: pointer;
+  }
+  .acte:active { background: rgba(95, 230, 255, 0.16); }
+  .acte.on { color: var(--cy); border-color: rgba(95, 230, 255, 0.5); }
+
+  .md { font-family: var(--sans); font-size: 15.5px; line-height: 1.68; color: #e3eef5; letter-spacing: 0; }
+  .md > *:first-child { margin-top: 0; }
+  .md > *:last-child { margin-bottom: 0; }
+  .md h1, .md h2, .md h3, .md h4 {
+    font-family: var(--sans); font-weight: 600; line-height: 1.3; letter-spacing: 0;
+    color: #f2fbff; margin: 22px 0 10px;
+  }
+  .md h1 { font-size: 21px; }
+  .md h2 { font-size: 18.5px; padding-bottom: 6px; border-bottom: 1px solid rgba(95, 230, 255, 0.16); }
+  .md h3 { font-size: 16px; color: var(--cy); }
+  .md h4 { font-size: 14.5px; color: var(--cy-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+  .md p { margin: 0 0 12px; }
+  .md ul, .md ol { margin: 0 0 14px; padding-left: 22px; }
+  .md li { margin: 5px 0; }
+  .md li::marker { color: var(--cy-dim); }
+  .md strong { color: #ffffff; font-weight: 600; }
+  .md em { color: #cfe6f2; }
+  .md a { color: var(--cy); text-decoration: none; border-bottom: 1px solid rgba(95, 230, 255, 0.35); word-break: break-word; }
+  .md blockquote {
+    margin: 0 0 14px; padding: 10px 14px; border-left: 2px solid var(--gold);
+    background: rgba(255, 179, 71, 0.06); color: #f0ddc2; border-radius: 0 6px 6px 0;
+  }
+  .md code {
+    font-family: var(--mono); font-size: 13px; background: rgba(95, 230, 255, 0.1);
+    color: #bdf2ff; padding: 1px 5px; border-radius: 4px;
+  }
+  .md pre {
+    margin: 0 0 14px; padding: 12px 14px; overflow-x: auto; border-radius: 8px;
+    background: rgba(3, 8, 14, 0.9); border: 1px solid rgba(95, 230, 255, 0.14);
+  }
+  .md pre code { background: none; padding: 0; color: #cfe9f5; font-size: 12.5px; line-height: 1.55; }
+  .md hr { border: 0; border-top: 1px solid rgba(95, 230, 255, 0.14); margin: 18px 0; }
+  .md img { max-width: 100%; height: auto; border-radius: 8px; margin: 6px 0 14px; display: block; }
+  .tbl { overflow-x: auto; margin: 0 0 16px; border: 1px solid rgba(95, 230, 255, 0.14); border-radius: 8px; }
+  .md table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  .md th, .md td { padding: 9px 12px; text-align: left; border-bottom: 1px solid rgba(95, 230, 255, 0.1); vertical-align: top; }
+  .md th { background: rgba(95, 230, 255, 0.08); color: var(--cy); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+  .md tr:last-child td { border-bottom: 0; }
+
+  .vignette { margin-top: 8px; max-width: 240px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255, 179, 71, 0.3); }
+  .vignette img { display: block; width: 100%; height: auto; }
+
+  form { flex: 0 0 auto; display: flex; gap: 8px; align-items: center; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: linear-gradient(0deg, rgba(95, 230, 255, 0.05), transparent); }
+  .champ { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 3px; background: rgba(6, 12, 20, 0.9); padding: 0 10px; }
+  .champ span { color: var(--cy-dim); font-size: 13px; }
+  input[type="text"], input[type="search"] { flex: 1 1 auto; background: none; border: 0; outline: none; color: var(--txt); font-family: var(--mono); font-size: 16px; padding: 13px 0; letter-spacing: 0.02em; width: 100%; }
+  input::placeholder { color: #46586a; }
+  button { border: 1px solid var(--line); background: rgba(95, 230, 255, 0.08); color: var(--cy); border-radius: 3px; font-family: var(--mono); font-size: 16px; height: 46px; min-width: 46px; display: grid; place-items: center; cursor: pointer; transition: background 0.15s ease, opacity 0.15s ease; }
+  button:active { background: rgba(95, 230, 255, 0.22); }
+  button:disabled { opacity: 0.35; }
+  #envoyer { background: rgba(255, 179, 71, 0.12); color: var(--gold); border-color: rgba(255, 179, 71, 0.3); }
+  #micro.enregistre { background: var(--gold); color: #10161f; border-color: var(--gold); }
+  #stop { background: rgba(255, 90, 80, 0.12); color: var(--rouge); border-color: rgba(255, 90, 80, 0.35); font-size: 15px; }
+  #stop:active { background: rgba(255, 90, 80, 0.3); }
+  #joindre { font-size: 17px; }
+
+  .apercu { display: none; align-items: center; gap: 10px; padding: 8px 14px 0; }
+  .apercu.on { display: flex; }
+  .apercu img { width: 46px; height: 46px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(95, 230, 255, 0.3); }
+  .apercu span { flex: 1 1 auto; font-size: 10px; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
+  .apercu button { height: 30px; min-width: 30px; font-size: 12px; }
+
+  /* ---------- bibliothèque ---------- */
+  .voile { position: fixed; inset: 0; background: rgba(2, 5, 10, 0.82); backdrop-filter: blur(4px); z-index: 40; display: flex; flex-direction: column; }
+  .panneau { margin: auto; width: min(680px, 96vw); max-height: 88dvh; display: flex; flex-direction: column; background: #070d16; border: 1px solid rgba(95, 230, 255, 0.22); border-radius: 12px; overflow: hidden; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); }
+  .panneau-tete { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .panneau-tete b { font-size: 10px; letter-spacing: 0.24em; color: var(--cy); font-weight: 500; text-transform: uppercase; }
+  .panneau-tete button { height: 30px; min-width: 30px; font-size: 13px; }
+  .panneau-barre { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .panneau-barre .champ { padding: 0 10px; }
+  .panneau-barre input { padding: 10px 0; }
+  .panneau-barre button { height: 38px; min-width: 38px; font-size: 14px; }
+  .panneau-liste { overflow-y: auto; padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .sauve { border: 1px solid rgba(95, 230, 255, 0.14); border-radius: 10px; padding: 14px 16px; background: rgba(9, 16, 26, 0.85); }
+  .sauve-q { font-size: 12px; color: var(--gold); letter-spacing: 0.04em; margin-bottom: 8px; }
+  .sauve .md { font-size: 14px; }
+  .sauve-actes { display: flex; gap: 6px; margin-top: 10px; }
+  .vide-biblio { text-align: center; color: var(--muted); font-size: 11px; letter-spacing: 0.14em; padding: 26px 0; text-transform: uppercase; }
+  .prop { border: 1px solid rgba(255, 179, 71, 0.22); border-radius: 10px; padding: 14px 16px; background: rgba(24, 18, 8, 0.55); }
+  .prop b { color: var(--gold); font-family: var(--sans); font-size: 14px; letter-spacing: 0; font-weight: 600; }
+  .prop .etat { display: block; margin-top: 4px; font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+  .prop pre {
+    white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: 11.5px; line-height: 1.5;
+    color: #cfe6f2; background: rgba(3, 8, 14, 0.85); border: 1px solid rgba(95, 230, 255, 0.12);
+    border-radius: 6px; padding: 10px 12px; max-height: 190px; overflow: auto; margin: 10px 0 0;
+  }
+  .prop .actes { display: flex; gap: 8px; margin-top: 12px; }
+  .prop-groupe { margin: 4px 0 0; padding-top: 10px; border-top: 1px solid rgba(95, 230, 255, 0.09); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--cy-dim); }
+  .prop-groupe:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+  .prop-chat-ligne { width: 100%; max-width: 100%; }
+  .prop-chat { border-color: rgba(255, 179, 71, 0.35); background: rgba(24, 18, 8, 0.72); }
+  .prop-chat .prop-demande { margin-top: 7px; color: #f0ddc2; font-family: var(--sans); font-size: 13.5px; line-height: 1.5; }
+  .prop-chat .etat { color: #b99a68; }
+  .prop-chat pre { max-height: 160px; }
+  .acte.ok { color: #9cf0b6; border-color: rgba(120, 240, 170, 0.5); background: rgba(60, 220, 130, 0.1); }
+  .acte.no { color: var(--rouge); border-color: rgba(255, 90, 80, 0.4); background: rgba(255, 90, 80, 0.1); }
+  .prop-vide { text-align: center; color: var(--muted); font-size: 11px; letter-spacing: 0.14em; padding: 26px 0; text-transform: uppercase; }
+
+  .acces { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(2, 5, 10, 0.97); backdrop-filter: blur(6px); padding: 24px; }
+  .acces .boite { width: min(420px, 94vw); border: 1px solid rgba(95, 230, 255, 0.25); border-radius: 12px; background: #070d16; padding: 26px 24px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65); }
+  .acces h1 { font-size: 12.5px; letter-spacing: 0.3em; color: var(--cy); margin: 0 0 8px; font-weight: 500; }
+  .acces p { font-size: 12px; line-height: 1.65; color: var(--muted); margin: 0 0 18px; letter-spacing: 0.04em; font-family: var(--sans); }
+  .acces input { width: 100%; background: rgba(3, 8, 14, 0.9); border: 1px solid var(--line); border-radius: 6px; color: var(--txt); font-family: var(--mono); font-size: 16px; padding: 13px 14px; outline: none; }
+  .acces button { width: 100%; margin-top: 14px; height: 46px; font-size: 12px; letter-spacing: 0.2em; }
+  .acces .erreur { color: var(--rouge); font-size: 11px; margin-top: 12px; letter-spacing: 0.06em; min-height: 15px; }
+
+  .bulle-toast {
+    position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: rgba(6, 18, 26, 0.96); border: 1px solid rgba(95, 230, 255, 0.4); color: var(--cy);
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; padding: 10px 16px; border-radius: 20px;
+    z-index: 60; animation: apparait 0.2s ease both;
+  }
+
+  /* revisions */
+  #veille-bouton { width: 28px; min-width: 28px; padding: 0; font-size: 13px; }
+  #veille-bouton.actif { border-color: var(--gold); color: var(--gold); background: rgba(255, 179, 71, 0.16); box-shadow: 0 0 12px rgba(255, 179, 71, 0.25); }
+  body.mode-rev #veille-bouton.actif { border-color: #1f6feb; color: #1f6feb; background: rgba(31, 111, 235, 0.10); box-shadow: none; }
+  #matiere-bouton { width: auto; min-width: 0; max-width: 92px; padding: 0 8px; font-size: 9px;
+    letter-spacing: 0.06em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .choix-matiere {
+    position: fixed; top: calc(58px + env(safe-area-inset-top)); right: 12px; z-index: 50;
+    background: #ffffff; border: 1px solid rgba(20, 24, 29, 0.14); border-radius: 12px; padding: 6px;
+    display: flex; flex-direction: column; gap: 2px; min-width: 200px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16);
+  }
+  .choix-matiere button {
+    height: 36px; width: 100%; display: flex; align-items: center; justify-content: flex-start;
+    padding: 0 10px; border: 0; background: none; border-radius: 8px;
+    color: #14181d; font-family: var(--sans); font-size: 13.5px; letter-spacing: 0;
+  }
+  .choix-matiere button.actif { background: #f3f4f6; font-weight: 600; }
+  .choix-matiere button:active { background: #eef0f2; }
+  #gemini-bouton { width: auto; min-width: 0; padding: 0 8px; font-size: 9px; letter-spacing: 0.1em; }
+  #gemini-compte { width: 22px; min-width: 22px; padding: 0; font-size: 9px; }
+  .rev-hote { padding: 0 14px 8px; flex: 0 0 auto; }
+  .barre-mode .mode[data-mode="revisions"].actif { color: #b8ff9e; border-color: rgba(150, 255, 130, 0.45); background: rgba(150, 255, 130, 0.09); box-shadow: inset 0 0 18px rgba(150, 255, 130, 0.10); }
+  .rev { border: 1px solid var(--line); border-radius: 12px; padding: 13px; background: rgba(6, 12, 20, 0.75); }
+  .rev h3 { margin: 0 0 6px; font-size: 10px; letter-spacing: 0.2em; color: var(--cy); font-weight: 600; }
+  .rev p { margin: 0 0 10px; font-size: 10.5px; line-height: 1.55; color: var(--muted); }
+  .rev-gemini { width: 100%; height: 40px; border-radius: 8px; border: 1px solid rgba(255, 179, 71, 0.5);
+    background: rgba(255, 179, 71, 0.12); color: var(--gold); font-family: var(--mono);
+    font-size: 11px; letter-spacing: 0.14em; cursor: pointer; }
+  .rev-gemini:active { background: rgba(255, 179, 71, 0.24); }
+  .rev-comptes { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .rev-comptes span { color: var(--muted); font-size: 9px; letter-spacing: 0.14em; }
+  .rev-compte { width: 30px; height: 26px; border-radius: 6px; border: 1px solid var(--line);
+    background: transparent; color: var(--txt); font-family: var(--mono); font-size: 10px; cursor: pointer; }
+  .rev-compte.actif { border-color: rgba(255, 179, 71, 0.6); color: var(--gold); background: rgba(255, 179, 71, 0.14); }
+  .rev-comptes .rev-lien { width: auto; margin: 0; padding: 0 2px; font-size: 9px; }
+  .rev-lien { width: 100%; margin-top: 6px; padding: 4px 0; background: none; border: 0;
+    color: var(--muted); font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em;
+    text-decoration: underline; cursor: pointer; }
+  .rev-sujet { width: 100%; margin: 11px 0 8px; height: 38px; padding: 0 11px; border-radius: 8px;
+    border: 1px solid var(--line); background: rgba(0, 0, 0, 0.35); color: var(--txt);
+    font-family: var(--mono); font-size: 12px; }
+  .rev-sujet::placeholder { color: var(--muted); }
+  .rev-actes { display: flex; gap: 7px; }
+  .rev-actes button { flex: 1 1 0; height: 34px; border-radius: 8px; border: 1px solid var(--line);
+    background: transparent; color: var(--txt); font-family: var(--mono); font-size: 9px;
+    letter-spacing: 0.1em; cursor: pointer; }
+  .rev-actes button:active { background: rgba(95, 230, 255, 0.12); }
+
+  /* ---------- mode revisions : page blanche, sobre ---------- */
+  body.mode-rev {
+    color-scheme: light;
+    background: #ffffff;
+    background-image: none;
+    color: #14181d;
+    --bg: #ffffff;
+    --txt: #14181d;
+    --muted: #6b7280;
+    --line: rgba(20, 24, 29, 0.12);
+    --cy: #1f6feb;
+    --cy-dim: #6b7280;
+    --gold: #b45309;
+    --rouge: #b42318;
+  }
+  body.mode-rev header { background: #ffffff; border-bottom: 1px solid rgba(20, 24, 29, 0.10); }
+  body.mode-rev header::after { display: none; }
+  body.mode-rev .marque { color: #14181d; text-shadow: none; letter-spacing: 0.26em; }
+  body.mode-rev .marque small { color: #8a8f98; }
+  body.mode-rev .hud-droite, body.mode-rev #horloge { color: #6b7280; }
+  body.mode-rev .hud-bouton { background: #ffffff; border-color: rgba(20, 24, 29, 0.16); color: #14181d; }
+  body.mode-rev .hud-bouton:active { background: #f3f4f6; }
+  body.mode-rev .etat-pastille,
+  body.mode-rev #ouvrir-propositions,
+  body.mode-rev #ouvrir-biblio,
+  body.mode-rev .reacteur,
+  body.mode-rev #statut { display: none !important; }
+  body.mode-rev .barre-mode { padding-top: 10px; }
+  body.mode-rev .mode {
+    background: #ffffff; border-color: rgba(20, 24, 29, 0.14); color: #6b7280;
+    border-radius: 8px; letter-spacing: 0.12em;
+  }
+  body.mode-rev .mode.actif,
+  body.mode-rev .mode[data-mode="fluide"].actif,
+  body.mode-rev .mode[data-mode="revisions"].actif {
+    color: #14181d; border-color: #14181d; background: #f3f4f6; box-shadow: none;
+  }
+  body.mode-rev .fil { background: #ffffff; }
+  body.mode-rev .fil::-webkit-scrollbar-thumb { background: rgba(20, 24, 29, 0.18); }
+  body.mode-rev .vide { color: #9aa0a6; text-transform: none; letter-spacing: 0.04em; }
+  body.mode-rev .vide b { color: #14181d; letter-spacing: 0.12em; text-transform: uppercase; }
+  body.mode-rev .entete-ligne { color: #9aa0a6; letter-spacing: 0.12em; }
+  body.mode-rev .lui .entete-ligne b { color: #1f6feb; }
+  body.mode-rev .moi .entete-ligne b { color: #6b7280; }
+  body.mode-rev .bulle {
+    background: #ffffff; border: 1px solid rgba(20, 24, 29, 0.12); border-radius: 12px;
+    color: #14181d; font-family: var(--sans); font-size: 15px;
+  }
+  body.mode-rev .moi .bulle {
+    background: #f3f4f6; border: 1px solid rgba(20, 24, 29, 0.08); color: #14181d;
+  }
+  body.mode-rev .lui .bulle { border-left: 1px solid rgba(20, 24, 29, 0.12); }
+  body.mode-rev .lui .bulle::before { display: none; }
+  body.mode-rev .note { color: #8a8f98; }
+  body.mode-rev .note.err { color: #b42318; }
+  body.mode-rev form { background: #ffffff; border-top: 1px solid rgba(20, 24, 29, 0.10); }
+  body.mode-rev .champ { background: #ffffff; border: 1px solid rgba(20, 24, 29, 0.18); border-radius: 10px; }
+  body.mode-rev .champ span { color: #9aa0a6; }
+  body.mode-rev input[type="text"] { color: #14181d; font-family: var(--sans); letter-spacing: 0; }
+  body.mode-rev .mode { font-family: var(--sans); font-size: 11px; }
+  body.mode-rev input::placeholder { color: #9aa0a6; }
+  body.mode-rev button { background: #ffffff; border-color: rgba(20, 24, 29, 0.16); color: #14181d; border-radius: 10px; }
+  body.mode-rev button:active { background: #f3f4f6; }
+  body.mode-rev #envoyer { background: #14181d; border-color: #14181d; color: #ffffff; }
+  body.mode-rev #micro.enregistre { background: #1f6feb; border-color: #1f6feb; color: #ffffff; }
+  body.mode-rev #stop { background: #ffffff; border-color: rgba(180, 35, 24, 0.35); color: #b42318; }
+  body.mode-rev .apercu span { color: #6b7280; }
+  body.mode-rev .apercu img { border-color: rgba(20, 24, 29, 0.14); border-radius: 8px; }
+  body.mode-rev .vignette { border-color: rgba(20, 24, 29, 0.12); }
+  body.mode-rev .md { color: #14181d; }
+  body.mode-rev .md h1, body.mode-rev .md h2, body.mode-rev .md h3, body.mode-rev .md h4 { color: #14181d; border-color: rgba(20, 24, 29, 0.12); }
+  body.mode-rev .md strong { color: #000000; }
+  body.mode-rev .md em { color: #374151; }
+  body.mode-rev .md a { color: #1f6feb; border-color: rgba(31, 111, 235, 0.35); }
+  body.mode-rev .md code { background: #f3f4f6; color: #14181d; }
+  body.mode-rev .md pre { background: #f7f7f8; border-color: rgba(20, 24, 29, 0.12); }
+  body.mode-rev .md pre code { color: #14181d; }
+  body.mode-rev .md blockquote { background: #f7f7f8; border-left-color: #1f6feb; color: #374151; }
+  body.mode-rev .md hr { border-top-color: rgba(20, 24, 29, 0.12); }
+  body.mode-rev .tbl { border-color: rgba(20, 24, 29, 0.12); }
+  body.mode-rev .md th { background: #f3f4f6; color: #14181d; }
+  body.mode-rev .md th, body.mode-rev .md td { border-bottom-color: rgba(20, 24, 29, 0.10); }
+  body.mode-rev .bulle-toast { background: #14181d; border-color: #14181d; color: #ffffff; border-radius: 10px; }
+  /* ---------- chats Gemini importés ---------- */
+  .gvoile { position: fixed; inset: 0; z-index: 70; display: flex; background: #ffffff; }
+  .gboite { width: 100%; max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; background: #ffffff; }
+  .gtete { display: flex; align-items: center; gap: 8px; padding: calc(10px + env(safe-area-inset-top)) 14px 10px; border-bottom: 1px solid rgba(20, 24, 29, 0.10); }
+  .gtete b { flex: 1 1 auto; font-size: 10px; letter-spacing: 0.2em; color: #14181d; font-family: var(--sans); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gtete button { height: 32px; min-width: 32px; border-radius: 8px; border: 1px solid rgba(20, 24, 29, 0.14); background: #ffffff; color: #14181d; font-size: 14px; }
+  .gbarre { display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid rgba(20, 24, 29, 0.08); }
+  .gbarre input { flex: 1 1 auto; background: #f7f7f8; border: 1px solid rgba(20, 24, 29, 0.12); border-radius: 8px; padding: 9px 10px; font-family: var(--sans); font-size: 14px; color: #14181d; outline: none; }
+  .gbarre button { height: 38px; min-width: 38px; border-radius: 8px; }
+  .gliste { flex: 1 1 auto; overflow-y: auto; padding: 6px 10px calc(20px + env(safe-area-inset-bottom)); }
+  .gitem { display: block; width: 100%; height: auto; min-width: 0; text-align: left; border: 0; border-bottom: 1px solid rgba(20, 24, 29, 0.07); background: none; border-radius: 0; padding: 12px 8px; font-family: var(--sans); color: #14181d; }
+  .gitem b { display: block; font-size: 14.5px; font-weight: 500; margin-bottom: 3px; line-height: 1.35; }
+  .gitem span { font-size: 11px; color: #8a8f98; }
+  .gvide { padding: 34px 18px; text-align: center; color: #8a8f98; font-family: var(--sans); font-size: 13px; line-height: 1.7; }
+  .gcorps { flex: 1 1 auto; overflow-y: auto; padding: 14px 16px calc(28px + env(safe-area-inset-bottom)); }
+  .gtour { margin-bottom: 20px; }
+  .gq { font-family: var(--sans); font-size: 14.5px; font-weight: 600; color: #14181d; margin-bottom: 6px; line-height: 1.4; }
+  .gq img { display: block; max-width: 100%; height: auto; border-radius: 10px; margin: 6px 0 2px; }
+  .gdate { font-size: 10px; color: #9aa0a6; letter-spacing: 0.06em; margin-bottom: 14px; font-family: var(--sans); }
+  .gcorps .md, .gcorps .md p, .gcorps .md li, .gcorps .md em, .gcorps .md strong { color: #2b3138; }
+  .gcorps .md h1, .gcorps .md h2, .gcorps .md h3, .gcorps .md h4 { color: #14181d; border-color: rgba(20, 24, 29, 0.12); }
+  .gcorps .md code { background: #f3f4f6; color: #14181d; }
+  .gcorps .md pre { background: #f7f7f8; border-color: rgba(20, 24, 29, 0.12); }
+  .gcorps .md pre code { color: #14181d; }
+  .gcorps .md a { color: #1f6feb; border-color: rgba(31, 111, 235, 0.35); }
+  .gcorps .md blockquote { background: #f7f7f8; color: #374151; border-left-color: #1f6feb; }
+  .gcorps .md th { background: #f3f4f6; color: #14181d; }
+  .gcorps .md th, .gcorps .md td { border-bottom-color: rgba(20, 24, 29, 0.10); }
+  .gsep { height: 1px; background: rgba(20, 24, 29, 0.10); margin: 5px 6px; }
+  .gsujetbar { display: flex; align-items: center; gap: 8px; padding: 0 14px 10px; }
+  .gsujetbar span { font-family: var(--sans); font-size: 11px; color: #8a8f98; white-space: nowrap; }
+  .gsujetbar select { flex: 1 1 auto; height: 34px; border-radius: 8px; border: 1px solid rgba(20, 24, 29, 0.14); background: #ffffff; color: #14181d; font-family: var(--sans); font-size: 13px; padding: 0 8px; }
+  .gitem { display: flex; align-items: center; gap: 8px; }
+  .gitem .gtxt { flex: 1 1 auto; min-width: 0; cursor: pointer; }
+  .gitem.principale { background: #fffdf6; }
+  .gitem .gsous { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
+  .gitem .gsous span { font-size: 11px; color: #8a8f98; }
+  .gselmat { height: 24px; max-width: 170px; border: 1px solid rgba(20, 24, 29, 0.12); border-radius: 6px; background: #ffffff; color: #4b5563; font-family: var(--sans); font-size: 11px; padding: 0 4px; }
+  .gstar { flex: 0 0 auto; width: 30px; height: 30px; min-width: 30px; border-radius: 8px; border: 1px solid rgba(180, 140, 0, 0.25); background: #ffffff; color: #b8860b; font-size: 14px; }
+  .gstar.on { background: #fff8e1; border-color: rgba(180, 140, 0, 0.5); }
+  .ggroupe { position: sticky; top: 0; z-index: 2; display: flex; align-items: baseline; gap: 8px; background: #ffffff; padding: 14px 8px 6px; border-bottom: 1px solid rgba(20, 24, 29, 0.08); font-family: var(--sans); }
+  .ggroupe b { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #14181d; font-weight: 600; }
+  .ggroupe span { font-size: 10px; color: #9aa0a6; }
+  .gdetailbar { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid rgba(20, 24, 29, 0.08); }
+  .gdetailbar > span { font-size: 11px; color: #8a8f98; white-space: nowrap; }
+  .gdetailbar select { flex: 1 1 auto; min-width: 0; height: 32px; border-radius: 8px; border: 1px solid rgba(20, 24, 29, 0.14); background: #ffffff; color: #14181d; font-family: var(--sans); font-size: 12px; padding: 0 6px; }
+  .gdetailbar .gstar { width: auto; min-width: 42px; padding: 0 8px; font-size: 11px; }
+  .gdel { flex: 0 0 auto; width: 30px; height: 30px; min-width: 30px; border-radius: 8px; border: 1px solid rgba(180, 35, 24, 0.25); background: #ffffff; color: #b42318; font-size: 13px; }
+  .gcoller { flex: 1 1 auto; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px calc(18px + env(safe-area-inset-bottom)); }
+  .gcoller textarea { flex: 1 1 auto; min-height: 220px; resize: none; border: 1px solid rgba(20, 24, 29, 0.15); border-radius: 10px; padding: 12px; font-family: var(--sans); font-size: 15px; line-height: 1.5; color: #14181d; background: #ffffff; outline: none; }
+  .gcoller-actions { display: flex; gap: 8px; }
+  .gcoller-actions button { flex: 1 1 auto; height: 42px; border-radius: 10px; }
+  #genregistrer { background: #14181d; border-color: #14181d; color: #ffffff; }
+</style>
+<link rel="stylesheet" href="espace.css?v=39.1" />
+</head>
+<body>
+<div class="acces" id="acces" hidden>
+  <div class="boite">
+    <h1 id="acces-titre">ACCÈS RESTREINT</h1>
+    <p id="acces-texte">Entre ton mot de passe pour ouvrir JARVIS.</p>
+    <form id="acces-form">
+      <input id="acces-mdp" type="password" autocomplete="current-password" placeholder="mot de passe" />
+      <button id="acces-valider" type="submit">ENTRER</button>
+    </form>
+    <div class="erreur" id="acces-erreur"></div>
+  </div>
+</div>
+
+<header>
+  <div class="marque">J.A.R.V.I.S.<small>mark X &middot; v39 &middot; interface mobile</small></div>
+  <div class="hud-droite">
+    <button class="hud-bouton" id="veille-bouton" type="button" title="écoute de « hey jarvis » coupée">👂</button>
+    <button class="hud-bouton" id="matiere-bouton" type="button" title="choisir la matière" hidden>Cours</button>
+    <button class="hud-bouton" id="gemini-bouton" type="button" title="ouvrir Gemini" hidden>GEMINI</button>
+    <button class="hud-bouton" id="gemini-compte" type="button" title="compte Gemini par défaut" hidden>?</button>
+    <button class="hud-bouton" id="ouvrir-propositions" type="button" title="modifications du code">✓<i id="nb-props" hidden></i></button>
+    <button class="hud-bouton" id="espace-bouton" type="button" title="ouvrir mon espace">▦</button>
+    <button class="hud-bouton" id="ouvrir-biblio" type="button" title="réponses enregistrées">◫</button>
+    <span class="etat-pastille"><i></i>EN LIGNE</span>
+    <span id="horloge">--:--</span>
+  </div>
+</header>
+
+<div id="espace" hidden></div>
+
+<div class="choix-matiere" id="choix-matiere" hidden></div>
+
+<div class="gvoile" id="gvoile" hidden>
+  <div class="gboite">
+    <div class="gtete">
+      <button id="gretour" type="button" hidden>←</button>
+      <b id="gtitre">MES CHATS GEMINI</b>
+      <button id="gsuppr" type="button" title="supprimer ce chat" hidden>🗑</button>
+      <button id="gfermer" type="button">✕</button>
+    </div>
+    <div class="gbarre" id="gbarre">
+      <input id="grecherche" type="search" placeholder="chercher un chat…" />
+      <button id="gimporter" type="button" title="importer un export Google">⇪</button>
+      <button id="glienbtn" type="button" title="importer depuis un lien Drive partagé">🔗</button>      <button id="gcollerbtn" type="button" title="coller un chat copié depuis Gemini">＋</button>
+    </div>
+    <div class="gsujetbar">
+      <span>importer dans</span>
+      <select id="gsujet"></select>
+    </div>
+    <div class="gcoller" id="gcoller" hidden>
+      <textarea id="gtexte" placeholder="colle ici la conversation copiée depuis Gemini (Ctrl+A puis Ctrl+C sur la page du chat)…"></textarea>
+      <div class="gcoller-actions">
+        <button id="gannuler" type="button">Annuler</button>
+        <button id="genregistrer" type="button">Enregistrer</button>
+      </div>
+    </div>
+    <div class="gliste" id="gliste"></div>
+    <div class="gcorps" id="gcorps" hidden></div>
+  </div>
+</div>
+
+<div class="reacteur" id="reacteur" role="button" aria-label="parler">
+  <div class="anneau a1"></div>
+  <div class="anneau a2"></div>
+  <div class="anneau a3"></div>
+  <div class="noyau"></div>
+  <div id="statut">appuie sur le réacteur pour parler</div>
+</div>
+
+<div class="barre-mode">
+  <button class="mode" data-mode="questions">QUESTIONS</button>
+  <button class="mode" data-mode="fluide">CONVERSATION</button>
+  <button class="mode" data-mode="revisions">RÉVISIONS</button>
+</div>
+
+<main class="fil" id="fil">
+  <div class="vide" id="vide"><b>Aucun échange</b>parle ou écris</div>
+</main>
+
+<div class="apercu" id="apercu">
+  <img id="apercu-img" alt="photo jointe" />
+  <span>photo jointe à la question</span>
+  <button id="apercu-ote" type="button" title="retirer">✕</button>
+</div>
+
+<form id="form">
+  <div class="champ">
+    <span>&gt;</span>
+    <input id="champ" type="text" autocomplete="off" autocapitalize="sentences" placeholder="parler à jarvis…" />
+  </div>
+  <input id="fichier" type="file" accept="image/*" hidden />
+  <input id="fichier-gemini" type="file" multiple hidden />
+  <button id="joindre" type="button" title="joindre une photo">📎</button>
+  <button id="stop" type="button" title="interrompre" hidden>■</button>
+  <button id="voix-question" class="voix-question" type="button" title="JARVIS lit toutes ses réponses" hidden>🔊 Voix</button>
+  <button id="coupe" type="button" title="couper le son">🔊</button>
+  <button id="micro" type="button" title="micro">🎙</button>
+  <button id="envoyer" type="submit" title="envoyer">➤</button>
+</form>
+
+<div class="voile" id="propositions" hidden>
+  <div class="panneau">
+    <div class="panneau-tete">
+      <b>Modifications du code</b>
+      <button id="fermer-propositions" type="button" title="fermer">✕</button>
+    </div>
+    <div class="panneau-barre">
+      <span style="flex:1 1 auto; font-size:10px; letter-spacing:0.1em; color:var(--muted); line-height:1.6;">
+        Valider une proposition : ton PC l'applique dans les secondes qui suivent, puis relance JARVIS.
+      </span>
+      <button id="cle-appareil" type="button" title="clé pour ton PC">🔑</button>
+      <button id="rafraichir-propositions" type="button" title="rafraîchir">⟳</button>
+    </div>
+    <div class="panneau-liste" id="liste-propositions"></div>
+  </div>
+</div>
+
+<div class="voile" id="biblio" hidden>
+  <div class="panneau">
+    <div class="panneau-tete">
+      <b>Réponses enregistrées</b>
+      <button id="fermer-biblio" type="button" title="fermer">✕</button>
+    </div>
+    <div class="panneau-barre">
+      <div class="champ"><span>⌕</span><input id="biblio-recherche" type="search" placeholder="chercher dans mes réponses…" /></div>
+      <button id="biblio-export" type="button" title="exporter tout en markdown">⇩</button>
+    </div>
+    <div class="panneau-liste" id="biblio-liste"></div>
+  </div>
+</div>
+
+<script>
+const fil = document.getElementById("fil");
+const vide = document.getElementById("vide");
+const form = document.getElementById("form");
+const champ = document.getElementById("champ");
+const envoyer = document.getElementById("envoyer");
+const micro = document.getElementById("micro");
+const coupe = document.getElementById("coupe");
+const voixQuestion = document.getElementById("voix-question");
+const reacteur = document.getElementById("reacteur");
+const statut = document.getElementById("statut");
+const horloge = document.getElementById("horloge");
+const boutonStop = document.getElementById("stop");
+const boutonJoindre = document.getElementById("joindre");
+const fichier = document.getElementById("fichier");
+const apercu = document.getElementById("apercu");
+const apercuImg = document.getElementById("apercu-img");
+const apercuOte = document.getElementById("apercu-ote");
+const biblio = document.getElementById("biblio");
+const biblioListe = document.getElementById("biblio-liste");
+const biblioRecherche = document.getElementById("biblio-recherche");
+
+const acces = document.getElementById("acces");
+const accesTitre = document.getElementById("acces-titre");
+const accesTexte = document.getElementById("acces-texte");
+const accesMdp = document.getElementById("acces-mdp");
+const accesErreur = document.getElementById("acces-erreur");
+const accesValider = document.getElementById("acces-valider");
+
+const jeton = new URLSearchParams(location.search).get("t") || "";
+const MEMO_MODE = "jarvis_mode";
+const MEMO_BIBLIO = "jarvis_biblio";
+const MEMO_URL = "/sauvegardes?t=" + encodeURIComponent(jeton);
+
+let sonActif = true;
+try { if (localStorage.getItem("jarvis_son") === "0") sonActif = false; } catch (e) {}
+let occupe = false;
+let suiteEnAttente = "";
+let suiteEnCours = false;
+let lecteur = null;
+let capture = null;
+let controleur = null;
+let autoCoupe = false;
+let lectureId = 0;
+let joint = null;
+const filChat = [];
+const filRev = {};
+let propositionsChat = [];
+let propositionsSignature = "";
+const memoMode = localStorage.getItem(MEMO_MODE);
+let mode = (memoMode === "fluide" || memoMode === "revisions") ? memoMode : "questions";
+
+const MATIERES = [
+  ["maths", "Maths"],
+  ["histoire", "Histoire"],
+  ["hggsp", "HGGSP"],
+  ["ses", "SES"],
+  ["francais", "Français"],
+  ["anglais", "Anglais"],
+  ["espagnol", "Espagnol"],
+  ["physique", "Physique"],
+  ["svt", "SVT"],
+  ["", "Cours (hors matière)"],
+];
+let matiereRev = localStorage.getItem("jarvis_matiere_rev") || "";
+if (!MATIERES.some((m) => m[0] === matiereRev)) matiereRev = "";
+
+function filRevision(slug) {
+  if (!filRev[slug]) filRev[slug] = [];
+  return filRev[slug];
+}
+
+function nomMatiere(slug) {
+  const t = MATIERES.filter((m) => m[0] === slug)[0];
+  if (!t) return "Cours";
+  return slug ? t[1] : "Cours";
+}
+
+function messagesDe(m) { return m === "revisions" ? filRevision(matiereRev) : filChat; }
+
+let messages = messagesDe(mode);
+
+const SEUIL_PAROLE = 0.03;
+const SEUIL_SILENCE = 0.015;
+const SILENCE_MS = 800;
+const MIN_MS = 400;
+const MAX_MS = 20000;
+
+/* ---------- affichage ---------- */
+function tic() {
+  const d = new Date();
+  horloge.textContent = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+tic();
+setInterval(tic, 15000);
+
+function heure(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  if (isNaN(d.getTime())) return "";
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+function modeAffichage(m, texte) {
+  reacteur.classList.remove("pense", "parle", "ecoute");
+  if (m) reacteur.classList.add(m);
+  if (texte) statut.textContent = texte;
+}
+
+function enQuestion() { return mode === "questions"; }
+
+function repos() {
+  if (!enQuestion()) modeAffichage("", "conversation — appuie pour parler");
+  else modeAffichage("", "questions — appuie pour parler");
+}
+
+function majModes() {
+  document.querySelectorAll(".mode").forEach((b) => b.classList.toggle("actif", b.dataset.mode === mode));
+  document.body.classList.toggle("mode-doc", enQuestion());
+  document.body.classList.toggle("mode-rev", mode === "revisions");
+  fil.classList.toggle("doc", enQuestion());
+  boutonJoindre.hidden = false;
+  champ.placeholder = enQuestion() ? "pose ta question…" : (mode === "revisions" ? "demande-moi de t'interroger…" : "parler à jarvis…");
+  if (geminiBouton) geminiBouton.hidden = mode !== "revisions";
+  if (geminiCompte) geminiCompte.hidden = mode !== "revisions";
+  if (voixQuestion) voixQuestion.hidden = !enQuestion();
+  if (coupe) coupe.hidden = enQuestion();
+  majVoix();
+  majMatiere();
+  if (mode !== "revisions") fermerMatiere();
+}
+
+function enBas() { fil.scrollTop = fil.scrollHeight; }
+
+/* ---------- Gemini ---------- */
+let compteGemini = localStorage.getItem("jarvis_compte_gemini");
+if (compteGemini !== "0" && compteGemini !== "1") compteGemini = "";
+
+const geminiBouton = document.getElementById("gemini-bouton");
+const geminiCompte = document.getElementById("gemini-compte");
+
+function ouvrirGemini() {
+  const base = "https://gemini.google.com/app";
+  const choix = "https://accounts.google.com/AccountChooser?continue=" + encodeURIComponent(base) + "&hl=fr";
+  const url = (compteGemini === "0" || compteGemini === "1") ? base + "?authuser=" + compteGemini : choix;
+  const f = window.open(url, "_blank", "noopener");
+  if (!f) location.href = url;
+}
+
+function majCompteGemini() {
+  if (!geminiCompte) return;
+  const su = compteGemini === "0" || compteGemini === "1";
+  geminiCompte.textContent = su ? String(Number(compteGemini) + 1) : "?";
+  geminiCompte.title = su ? ("compte Gemini " + (Number(compteGemini) + 1) + " par défaut") : "compte Gemini à choisir";
+}
+
+function basculerCompteGemini() {
+  compteGemini = compteGemini === "0" ? "1" : "0";
+  try { localStorage.setItem("jarvis_compte_gemini", compteGemini); } catch (e) {}
+  majCompteGemini();
+  toast("compte Gemini " + (Number(compteGemini) + 1));
+}
+
+if (geminiBouton) geminiBouton.addEventListener("click", ouvrirGemini);
+if (geminiCompte) geminiCompte.addEventListener("click", basculerCompteGemini);
+majCompteGemini();
+
+/* ---------- matieres des revisions ---------- */
+const matiereBouton = document.getElementById("matiere-bouton");
+const choixMatiere = document.getElementById("choix-matiere");
+
+function majMatiere() {
+  if (!matiereBouton) return;
+  matiereBouton.textContent = nomMatiere(matiereRev);
+  matiereBouton.title = "matière : " + nomMatiere(matiereRev);
+  matiereBouton.hidden = mode !== "revisions";
+}
+
+function fermerMatiere() {
+  if (choixMatiere) choixMatiere.hidden = true;
+}
+
+function ouvrirMatiere() {
+  if (!choixMatiere) return;
+  choixMatiere.innerHTML = "";
+  MATIERES.forEach((paire) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = paire[0] === matiereRev ? "actif" : "";
+    b.textContent = paire[1];
+    b.addEventListener("click", () => choisirMatiere(paire[0]));
+    choixMatiere.appendChild(b);
+  });
+  const sep = document.createElement("div");
+  sep.className = "gsep";
+  choixMatiere.appendChild(sep);
+  const bChats = document.createElement("button");
+  bChats.type = "button";
+  bChats.textContent = "🗂 Mes chats Gemini" + (gChats && gChats.length ? " (" + gChats.length + ")" : "");
+  bChats.addEventListener("click", () => { fermerMatiere(); gOuvrir(); });
+  choixMatiere.appendChild(bChats);
+  const bImport = document.createElement("button");
+  bImport.type = "button";
+  bImport.textContent = "⬇ Importer un export Gemini";
+  bImport.addEventListener("click", () => { fermerMatiere(); if (fichierGemini) fichierGemini.click(); });
+  choixMatiere.appendChild(bImport);
+  choixMatiere.hidden = false;
+}
+
+function choisirMatiere(slug) {
+  matiereRev = slug;
+  try { localStorage.setItem("jarvis_matiere_rev", slug); } catch (e) {}
+  fermerMatiere();
+  majMatiere();
+  if (mode === "revisions") {
+    messages = filRevision(slug);
+    rendre();
+    chargerRevision(slug);
+  }
+}
+
+if (matiereBouton) {
+  matiereBouton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (choixMatiere && !choixMatiere.hidden) fermerMatiere();
+    else ouvrirMatiere();
+  });
+}
+document.addEventListener("click", (e) => {
+  if (!choixMatiere || choixMatiere.hidden) return;
+  if (choixMatiere.contains(e.target)) return;
+  if (matiereBouton && matiereBouton.contains(e.target)) return;
+  fermerMatiere();
+});
+majMatiere();
+
+/* ---------- commandes vocales et veille ---------- */
+const memoVeille = localStorage.getItem("jarvis_veille");
+let veilleVoulue = memoVeille === "1";
+let veilleBloquee = false;
+let minuteurVeille = 0;
+let gesteVu = false;
+
+const veilleBouton = document.getElementById("veille-bouton");
+
+function majVeille() {
+  if (!veilleBouton) return;
+  veilleBouton.classList.toggle("actif", veilleVoulue);
+  veilleBouton.setAttribute("aria-pressed", veilleVoulue ? "true" : "false");
+  veilleBouton.title = veilleVoulue
+    ? "veille activée — dis « hey jarvis » (appuie pour couper)"
+    : "veille coupée — appuie sur 🎙 pour dicter (appuie ici pour la veille)";
+}
+
+function basculerVeille() {
+  veilleVoulue = !veilleVoulue;
+  try { localStorage.setItem("jarvis_veille", veilleVoulue ? "1" : "0"); } catch (e) {}
+  majVeille();
+  clearTimeout(minuteurVeille);
+  if (veilleVoulue) {
+    gesteVu = true;
+    toast("veille activée — dis « hey Jarvis »");
+    if (!occupe && !capture && !lecteur) veiller(200);
+  } else {
+    toast("veille coupée — 🎙 pour parler");
+    if (capture && capture.but === "veille") arreter();
+  }
+}
+
+if (veilleBouton) {
+  veilleBouton.addEventListener("click", (e) => { e.stopPropagation(); basculerVeille(); });
+}
+majVeille();
+
+function sansAccents(s) {
+  return String(s || "").toLowerCase().normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").replace(/[’']/g, " ");
+}
+
+/* ordre donne a voix haute : "question", "conversation", "silence", ou "" */
+function ordreVocal(dit) {
+  const t = sansAccents(dit).replace(/[.,!?;:…-]+/g, " ").replace(/\s+/g, " ").trim();
+  const mots = t.split(" ").filter(Boolean);
+  if (!mots.length || mots.length > 8) return "";
+  if (/\b(tais toi|taisez vous|silence|chut|arrete|arretez|stop|calme toi|coupe la voix|coupe le son)\b/.test(t)) return "silence";
+  if (/\bmode\b/.test(t) && /\bquestions?\b/.test(t)) return "question";
+  if (/\bmode\b/.test(t) && /\b(revisions?|reviser|revisionner)\b/.test(t)) return "revisions";
+  if (/\bmode\b/.test(t) && /\b(conversation|conversationnel|vocal)\b/.test(t)) return "conversation";
+  if (/\b(reveille toi|reveil toi|passe en vocal|mode vocal)\b/.test(t)) return "conversation";
+  return "";
+}
+
+/* en veille : renvoie null si on ne l'appelle pas, "" s'il n'y a que le nom,
+   sinon la phrase qui suit "jarvis" */
+function reveil(dit) {
+  const mots = String(dit || "").split(/\s+/).filter(Boolean);
+  let i = -1;
+  for (let k = 0; k < mots.length && k <= 3; k++) {
+    if (/\bjarvis\b/.test(sansAccents(mots[k]).replace(/[.,!?;:…]/g, ""))) { i = k; break; }
+  }
+  if (i < 0) return null;
+  return mots.slice(i + 1).join(" ").replace(/^[,.;:!?…-]+/, "").trim();
+}
+
+function changerMode(nouveau, lancer) {
+  mode = nouveau;
+  localStorage.setItem(MEMO_MODE, mode);
+  messages = messagesDe(mode);
+  majModes();
+  rendre();
+  if (mode === "revisions") chargerRevision(matiereRev);
+  if (mode === "questions") {
+    arreter();
+    repos();
+  } else if (lancer) {
+    if (capture && capture.but === "veille") {
+      veilleBloquee = true;
+      arreter();
+      setTimeout(() => { veilleBloquee = false; if (!capture) ecouter(true); }, 500);
+    } else {
+      setTimeout(() => ecouter(true), 150);
+    }
+  }
+}
+
+/* veille : seulement quand on l'a demandee avec le bouton 👂, dans n'importe quel mode */
+function veiller(delai) {
+  if (!veilleVoulue || veilleBloquee || !gesteVu) return;
+  if (occupe || capture || lecteur) return;
+  clearTimeout(minuteurVeille);
+  minuteurVeille = setTimeout(() => {
+    if (!veilleVoulue || veilleBloquee) return;
+    if (occupe || capture || lecteur) return;
+    ecouter(true, "veille");
+  }, delai == null ? 400 : delai);
+}
+
+
+
+/* ---------- markdown maison ---------- */
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function inlineMd(s) {
+  return s
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^\w*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, '<img src="$2" alt="$1" loading="lazy" referrerpolicy="no-referrer">')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+}
+
+function cellules(ligne) {
+  return ligne.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => inlineMd(c.trim()));
+}
+
+function md(texte) {
+  const lignes = esc(texte).split(/\r?\n/);
+  const sortie = [];
+  let i = 0;
+  let liste = "";
+  function fermeListe() {
+    if (liste) { sortie.push("</" + liste + ">"); liste = ""; }
+  }
+  while (i < lignes.length) {
+    const l = lignes[i];
+    if (/^\s*```/.test(l)) {
+      fermeListe();
+      const bloc = [];
+      i++;
+      while (i < lignes.length && !/^\s*```/.test(lignes[i])) { bloc.push(lignes[i]); i++; }
+      i++;
+      sortie.push("<pre><code>" + bloc.join("\n") + "</code></pre>");
+      continue;
+    }
+    if (!l.trim()) { fermeListe(); i++; continue; }
+    if (l.trim().startsWith("|") && i + 1 < lignes.length && /^\s*\|[\s:|-]+\|?\s*$/.test(lignes[i + 1])) {
+      fermeListe();
+      const tete = cellules(l);
+      i += 2;
+      const corps = [];
+      while (i < lignes.length && lignes[i].trim().startsWith("|")) { corps.push(cellules(lignes[i])); i++; }
+      sortie.push('<div class="tbl"><table><thead><tr>' + tete.map((c) => "<th>" + c + "</th>").join("")
+        + "</tr></thead><tbody>"
+        + corps.map((r) => "<tr>" + r.map((c) => "<td>" + c + "</td>").join("") + "</tr>").join("")
+        + "</tbody></table></div>");
+      continue;
+    }
+    const tit = l.match(/^\s*(#{1,4})\s+(.*)$/);
+    if (tit) {
+      fermeListe();
+      const n = tit[1].length;
+      sortie.push("<h" + n + ">" + inlineMd(tit[2]) + "</h" + n + ">");
+      i++;
+      continue;
+    }
+    if (/^\s*(---+|\*\*\*+)\s*$/.test(l)) { fermeListe(); sortie.push("<hr>"); i++; continue; }
+    const cite = l.match(/^\s*&gt;\s?(.*)$/);
+    if (cite) { fermeListe(); sortie.push("<blockquote>" + inlineMd(cite[1]) + "</blockquote>"); i++; continue; }
+    const puce = l.match(/^\s*[-*•]\s+(.*)$/);
+    if (puce) {
+      if (liste !== "ul") { fermeListe(); sortie.push("<ul>"); liste = "ul"; }
+      sortie.push("<li>" + inlineMd(puce[1]) + "</li>");
+      i++;
+      continue;
+    }
+    const num = l.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (num) {
+      if (liste !== "ol") { fermeListe(); sortie.push("<ol>"); liste = "ol"; }
+      sortie.push("<li>" + inlineMd(num[1]) + "</li>");
+      i++;
+      continue;
+    }
+    fermeListe();
+    const para = [l];
+    i++;
+    while (i < lignes.length && lignes[i].trim()
+      && !/^\s*(#{1,4}\s|[-*•]\s|\d+[.)]\s|&gt;|\||```|---)/.test(lignes[i])) {
+      para.push(lignes[i]);
+      i++;
+    }
+    sortie.push("<p>" + inlineMd(para.join(" ")) + "</p>");
+  }
+  fermeListe();
+  return sortie.join("");
+}
+
+/* ---------- rendu des messages ---------- */
+function questionAvant(index) {
+  for (let k = index - 1; k >= 0; k--) {
+    if (messages[k].qui === "moi") return messages[k].texte || "";
+  }
+  return "";
+}
+
+function elementMessage(m, index) {
+  const bloc = document.createElement("div");
+  bloc.className = "ligne " + (m.qui === "moi" ? "moi" : "lui");
+  const t = document.createElement("div");
+  t.className = "entete-ligne";
+  t.innerHTML = "<b>" + (m.qui === "moi" ? "vous" : "jarvis") + "</b><span>" + heure(m.iso) + "</span>";
+  bloc.appendChild(t);
+
+  if (m.qui === "moi") {
+    const b = document.createElement("div");
+    b.className = "bulle";
+    b.textContent = m.texte || "";
+    bloc.appendChild(b);
+    if (m.image) {
+      const v = document.createElement("div");
+      v.className = "vignette";
+      const img = document.createElement("img");
+      img.src = m.image;
+      img.alt = "photo jointe";
+      v.appendChild(img);
+      bloc.appendChild(v);
+    }
+    return bloc;
+  }
+
+  if (enQuestion()) {
+    const carte = document.createElement("div");
+    carte.className = "carte";
+    const tete = document.createElement("div");
+    tete.className = "carte-tete";
+    tete.innerHTML = "<b>Réponse</b><span>" + heure(m.iso) + "</span>";
+    const corps = document.createElement("div");
+    corps.className = "md";
+    corps.innerHTML = md(m.texte || "");
+    const actes = document.createElement("div");
+    actes.className = "actes";
+    actes.appendChild(boutonActe("Écouter", () => lireLong(m.texte || "")));
+    actes.appendChild(boutonActe("Copier", () => copier(m.texte || "")));
+    actes.appendChild(boutonActe("Enregistrer", (b) => enregistrer(m.texte || "", questionAvant(index), b)));
+    carte.appendChild(tete);
+    carte.appendChild(corps);
+    carte.appendChild(actes);
+    bloc.appendChild(carte);
+    return bloc;
+  }
+
+  const b = document.createElement("div");
+  b.className = "bulle";
+  b.textContent = m.texte || "";
+  bloc.appendChild(b);
+  return bloc;
+}
+
+function boutonActe(libelle, action, classe) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "acte" + (classe ? " " + classe : "");
+  b.textContent = libelle;
+  b.addEventListener("click", () => action(b));
+  return b;
+}
+
+function afficherPropositionsChat() {
+  if (!propositionsChat.length) return;
+  propositionsChat.forEach((p) => {
+    const ligne = document.createElement("div");
+    ligne.className = "ligne lui prop-chat-ligne";
+    const entete = document.createElement("div");
+    entete.className = "entete-ligne";
+    entete.innerHTML = "<b>jarvis</b><span>validation · " + quand(p.maj || p.cree) + "</span>";
+    const carte = document.createElement("div");
+    carte.className = "prop prop-chat";
+    const titre = document.createElement("b");
+    titre.textContent = "J'ai une modification à te faire valider";
+    const demande = document.createElement("div");
+    demande.className = "prop-demande";
+    demande.textContent = p.demande || "Modification";
+    const etat = document.createElement("span");
+    etat.className = "etat";
+    etat.textContent = "prête à valider · " + quand(p.maj || p.cree);
+    carte.appendChild(titre);
+    carte.appendChild(demande);
+    carte.appendChild(etat);
+    if (p.resume) {
+      const pre = document.createElement("pre");
+      pre.textContent = p.resume;
+      carte.appendChild(pre);
+    }
+    const actes = document.createElement("div");
+    actes.className = "actes";
+    actes.appendChild(boutonActe("Oui", async (b) => {
+      b.disabled = true;
+      if (!(await decider(p.id, "validee"))) { b.disabled = false; return; }
+      toast("validée — le PC applique");
+      await majBadge();
+    }, "ok"));
+    actes.appendChild(boutonActe("Non", async (b) => {
+      b.disabled = true;
+      if (!(await decider(p.id, "refusee"))) { b.disabled = false; return; }
+      toast("refusée");
+      await majBadge();
+    }, "no"));
+    carte.appendChild(actes);
+    ligne.appendChild(entete);
+    ligne.appendChild(carte);
+    fil.appendChild(ligne);
+  });
+}
+
+let notesVives = [];
+function rendre() {
+  notesVives.forEach((n) => n.remove());
+  notesVives = [];
+  fil.innerHTML = "";
+  if (!messages.length && !propositionsChat.length) {
+    const v = document.createElement("div");
+    v.className = "vide";
+    v.innerHTML = mode === "revisions"
+      ? "<b>" + nomMatiere(matiereRev) + "</b>demande-moi de t'interroger"
+      : "<b>Aucun échange</b>parle ou écris";
+    fil.appendChild(v);
+    return;
+  }
+  messages.forEach((m, i) => fil.appendChild(elementMessage(m, i)));
+  afficherPropositionsChat();
+  enBas();
+}
+
+function ajouter(qui, texte, iso, image) {
+  messages.push({ qui, texte, iso, image });
+  rendre();
+}
+
+function note(texte, estErreur) {
+  const n = document.createElement("div");
+  n.className = "note" + (estErreur ? " err" : "");
+  n.textContent = texte;
+  fil.appendChild(n);
+  notesVives.push(n);
+  enBas();
+}
+
+/* ---------- petites actions ---------- */
+function toast(texte) {
+  const t = document.createElement("div");
+  t.className = "bulle-toast";
+  t.textContent = texte;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1800);
+}
+
+function copier(texte) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texte).then(() => toast("copié"), () => toast("copie impossible"));
+      return;
+    }
+  } catch (e) { /* repli */ }
+  const z = document.createElement("textarea");
+  z.value = texte;
+  document.body.appendChild(z);
+  z.select();
+  try { document.execCommand("copy"); toast("copié"); } catch (e) { toast("copie impossible"); }
+  z.remove();
+}
+
+function biblioLocale() {
+  try { return JSON.parse(localStorage.getItem(MEMO_BIBLIO) || "[]"); } catch (e) { return []; }
+}
+
+function biblioLocaleEcrire(liste) {
+  try { localStorage.setItem(MEMO_BIBLIO, JSON.stringify(liste.slice(0, 200))); } catch (e) {}
+}
+
+async function enregistrer(texte, question, bouton) {
+  const local = { id: "l" + Date.now(), question, texte, mode, cree: new Date().toISOString() };
+  let ok = false;
+  try {
+    const r = await fetch(MEMO_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texte, question, mode }),
+    });
+    ok = r.ok;
+  } catch (e) { ok = false; }
+  if (!ok) {
+    const liste = biblioLocale();
+    liste.unshift(local);
+    biblioLocaleEcrire(liste);
+  }
+  if (bouton) { bouton.textContent = "Enregistré ✓"; bouton.classList.add("on"); }
+  toast(ok ? "enregistré dans la bibliothèque" : "enregistré sur cet appareil");
+}
+
+/* ---------- historique ---------- */
+async function historique() {
+  try {
+    const r = await fetch("last", { cache: "no-store" });
+    if (!r.ok) return;
+    const d = await r.json();
+    (d.messages || []).forEach((m) => {
+      filChat.push({ qui: m.role === "user" ? "moi" : "lui", texte: m.texte, iso: m.cree });
+    });
+    rendre();
+  } catch (e) { /* facultatif */ }
+}
+
+async function chargerRevision(slug) {
+  const canal = "revisions" + (slug ? ":" + slug : "");
+  try {
+    const r = await fetch("last?canal=" + encodeURIComponent(canal) + "&n=20", { cache: "no-store" });
+    if (!r.ok) return;
+    const d = await r.json();
+    const liste = filRevision(slug);
+    liste.length = 0;
+    (d.messages || []).forEach((m) => liste.push({
+      qui: m.role === "user" ? "moi" : "lui",
+      texte: m.texte,
+      iso: m.cree,
+    }));
+    if (mode === "revisions" && matiereRev === slug) {
+      messages = liste;
+      rendre();
+    }
+  } catch (e) { /* facultatif */ }
+}
+
+/* ---------- lecture de la voix (WebAudio : indispensable sur iPhone) ---------- */
+let ctxAudio = null;
+let prechauffe = false;
+
+function debloquerAudio() {
+  gesteVu = true;
+  if (demarre && veilleVoulue && !capture && !occupe) veiller(300);
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!ctxAudio) ctxAudio = new AC();
+    if (ctxAudio.state === "suspended") ctxAudio.resume().catch(() => {});
+    if (!prechauffe) {
+      prechauffe = true;
+      setTimeout(() => { chargerTts("Bonjour."); }, 250);
+    }
+  } catch (e) { /* tant pis */ }
+}
+document.addEventListener("touchstart", debloquerAudio, true);
+document.addEventListener("click", debloquerAudio, true);
+document.addEventListener("keydown", debloquerAudio, true);
+
+/* ---------- synthèse : par phrases, les suivantes en avance ---------- */
+const cacheTts = new Map();
+const AVANCE = 3;
+
+function chargerTts(texte) {
+  const cle = String(texte || "").trim();
+  if (!cle) return Promise.resolve(null);
+  if (cacheTts.has(cle)) return cacheTts.get(cle);
+  const p = fetch("tts?t=" + encodeURIComponent(cle))
+    .then((r) => (r.ok ? r.arrayBuffer() : null))
+    .catch(() => null);
+  cacheTts.set(cle, p);
+  if (cacheTts.size > 60) {
+    const vieux = cacheTts.keys().next().value;
+    cacheTts.delete(vieux);
+  }
+  return p;
+}
+
+async function jouerBrut(brut) {
+  if (!brut || !brut.byteLength) return;
+  if (ctxAudio) {
+    try {
+      if (ctxAudio.state === "suspended") {
+        // en arriere-plan, resume() peut rester en attente : on ne bloque pas
+        const relance = await Promise.race([
+          ctxAudio.resume().then(() => true).catch(() => false),
+          new Promise((ok) => setTimeout(() => ok(false), 1200)),
+        ]);
+        if (!relance && ctxAudio.state === "suspended") throw new Error("audio suspendu");
+      }
+      const buf = await new Promise((ok, ko) => {
+        const suite = ctxAudio.decodeAudioData(brut.slice(0), ok, ko);
+        if (suite && suite.then) suite.then(ok).catch(ko);
+      });
+      await new Promise((fin) => {
+        const src = ctxAudio.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctxAudio.destination);
+        src.onended = () => { if (lecteur === src) lecteur = null; fin(); };
+        lecteur = src;
+        src.start(0);
+        setTimeout(fin, 60000);
+      });
+      return;
+    } catch (e) { /* on retombe sur l'élément audio */ }
+  }
+
+  try {
+    const blob = new Blob([brut], { type: "audio/mpeg" });
+    const el = new Audio(URL.createObjectURL(blob));
+    lecteur = el;
+    await el.play();
+    await new Promise((fin) => { el.onended = fin; el.onerror = fin; setTimeout(fin, 60000); });
+    if (lecteur === el) lecteur = null;
+  } catch (e) { /* la voix est un bonus */ }
+}
+
+async function jouer(texte) {
+  await jouerBrut(await chargerTts(texte));
+}
+
+function couper() {
+  lectureId++;
+  if (!lecteur) return;
+  try { if (lecteur.stop) lecteur.stop(); else lecteur.pause(); } catch (e) {}
+  lecteur = null;
+}
+
+/* écoute du mot "stop" pendant que Jarvis parle : elle ne coupe que la voix,
+   pas la requête, qui continue à écrire la réponse. */
+let recoStop = null;
+
+function arreterEcouteStop() {
+  const r = recoStop;
+  recoStop = null;
+  if (!r) return;
+  try { r.onresult = null; r.onend = null; r.onerror = null; r.stop(); } catch (e) {}
+}
+
+function demarrerEcouteStop() {
+  if (recoStop || !sonActif) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  let r;
+  try { r = new SR(); } catch (e) { return; }
+  r.lang = "fr-FR";
+  r.continuous = true;
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+  r.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = sansAccents((e.results[i][0] && e.results[i][0].transcript) || "")
+        .replace(/[.,!?;:…-]+/g, " ").replace(/\s+/g, " ").trim();
+      const mots = t.split(" ").filter(Boolean);
+      if (!mots.length || mots.length > 4) continue;
+      if (/\b(stop|stoppe|arrete|arretez|silence|tais toi|coupe la voix|coupe le son)\b/.test(t)) {
+        stopperVoix();
+        return;
+      }
+    }
+  };
+  r.onend = () => {
+    if (recoStop !== r || !occupe) return;
+    setTimeout(() => { if (recoStop === r && occupe) { try { r.start(); } catch (e) {} } }, 400);
+  };
+  r.onerror = () => {};
+  try { r.start(); recoStop = r; } catch (e) { recoStop = null; }
+}
+
+function stopperVoix() {
+  couper();
+  autoCoupe = false;
+  arreterEcouteStop();
+  note("voix coupée — je continue à écrire");
+  setTimeout(() => { if (!capture) ecouter(true, "suite"); }, 500);
+}
+
+function decouper(texte) {
+  const morceaux = [];
+  let reste = String(texte || "").replace(/[#*_>`|]/g, " ").replace(/\s+/g, " ").trim();
+  let premier = true;
+  while (reste.length) {
+    const maxi = premier ? 90 : 220;
+    if (reste.length <= maxi) { morceaux.push(reste); break; }
+    let coupe = reste.lastIndexOf(". ", maxi);
+    if (coupe < maxi * 0.4) coupe = reste.lastIndexOf(", ", maxi);
+    if (coupe < maxi * 0.3) coupe = reste.lastIndexOf(" ", maxi);
+    if (coupe < 1) coupe = maxi;
+    morceaux.push(reste.slice(0, coupe + 1).trim());
+    reste = reste.slice(coupe + 1).trim();
+    premier = false;
+  }
+  return morceaux.filter(Boolean);
+}
+
+async function lireVif(texte) {
+  const morceaux = decouper(texte);
+  if (!morceaux.length) return;
+  const mien = ++lectureId;
+  for (let i = 0; i < Math.min(AVANCE, morceaux.length); i++) chargerTts(morceaux[i]);
+  for (let i = 0; i < morceaux.length; i++) {
+    if (mien !== lectureId) return;
+    const brut = await chargerTts(morceaux[i]);
+    if (mien !== lectureId) return;
+    const suivante = i + AVANCE;
+    if (suivante < morceaux.length) chargerTts(morceaux[suivante]);
+    if (brut) await jouerBrut(brut);
+  }
+}
+
+async function lireLong(texte) {
+  if (occupe) return;
+  occupe = true;
+  boutonStop.hidden = false;
+  modeAffichage("parle", "lecture");
+  try {
+    await lireVif(texte);
+  } finally {
+    occupe = false;
+    boutonStop.hidden = true;
+    repos();
+  }
+}
+
+/* ---------- dialogue texte ---------- */
+/* ---------- reponse en direct : il parle des la premiere phrase ---------- */
+function voixContinue() {
+  const mien = ++lectureId;
+  let reste = "";
+  let chaine = Promise.resolve();
+  const dire = (phrase) => {
+    const cle = String(phrase || "").trim();
+    if (cle.length < 2 || mien !== lectureId) return;
+    chargerTts(cle);
+    chaine = chaine.then(async () => {
+      if (mien !== lectureId) return;
+      const brut = await chargerTts(cle);
+      if (mien !== lectureId) return;
+      await jouerBrut(brut);
+    }).catch(() => {});
+  };
+  const avaler = (morceau, force) => {
+    reste += morceau;
+    let m;
+    while ((m = reste.match(/^([\s\S]*?[.!?…]+)(\s+|$)/))) {
+      dire(m[1]);
+      reste = reste.slice(m[0].length);
+    }
+    if (force) {
+      if (reste.trim()) dire(reste);
+      reste = "";
+      return;
+    }
+    if (reste.length > 180) {
+      const coupe = reste.lastIndexOf(" ", 180);
+      if (coupe > 60) {
+        dire(reste.slice(0, coupe));
+        reste = reste.slice(coupe + 1);
+      }
+    }
+  };
+  return {
+    pousser: (t) => avaler(t, false),
+    finir: async () => { avaler("", true); await chaine; },
+  };
+}
+
+async function reponseFlux(texte, image, t0) {
+  const corps = { text: texte, mode };
+  if (mode === "revisions") {
+    corps.matiere = matiereRev;
+    corps.archive = await gArchiveContexte(matiereRev);
+  }
+  if (image) corps.image = { mime: image.mime, data: image.base64 };
+  const r = await fetch("ask?fmt=flux&t=" + encodeURIComponent(jeton), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(corps),
+    signal: controleur.signal,
+  });
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(d.erreur || ("erreur " + r.status));
+  }
+  const voix = sonActif ? voixContinue() : null;
+  const place = messages.push({ qui: "lui", texte: "", iso: new Date().toISOString() }) - 1;
+  let complet = "";
+  let erreur = "";
+  let dernier = 0;
+  const rafraichir = (force) => {
+    const t = performance.now();
+    if (!force && t - dernier < 120) return;
+    dernier = t;
+    rendre();
+  };
+  modeAffichage("parle", "transmission vocale");
+  const lecteur = r.body.getReader();
+  const dec = new TextDecoder();
+  let tampon = "";
+  const traiter = (ligne) => {
+    if (!ligne.trim()) return;
+    let o = null;
+    try { o = JSON.parse(ligne); } catch (e) { return; }
+    if (o.erreur) { erreur = String(o.erreur); return; }
+    if (typeof o.t === "string" && o.t) {
+      complet += o.t;
+      messages[place].texte = complet;
+      rafraichir(false);
+      if (voix) voix.pousser(o.t);
+    }
+  };
+  for (;;) {
+    const { done, value } = await lecteur.read();
+    if (done) break;
+    tampon += dec.decode(value, { stream: true });
+    const lignes = tampon.split("\n");
+    tampon = lignes.pop() || "";
+    lignes.forEach(traiter);
+  }
+  traiter(tampon);
+  complet = complet.trim();
+  messages[place].texte = complet;
+  rafraichir(true);
+  if (!complet) throw new Error(erreur || "réponse vide");
+  note("réponse en " + ((performance.now() - t0) / 1000).toFixed(1) + " s");
+  if (voix) await voix.finir();
+}
+
+async function parler(texte) {
+  if (occupe) return;
+  occupe = true;
+  autoCoupe = false;
+  if (capture && capture.but === "veille") {
+    veilleBloquee = true;
+    arreter();
+    setTimeout(() => { veilleBloquee = false; }, 800);
+  }
+  envoyer.disabled = true;
+  boutonStop.hidden = false;
+  champ.value = "";
+  const image = joint;
+  joint = null;
+  majApercu();
+  ajouter("moi", texte || "", null, image ? image.dataUrl : null);
+  modeAffichage("pense", enQuestion() ? "recherche" : "analyse en cours");
+  const t0 = performance.now();
+
+  controleur = new AbortController();
+  if (sonActif && !enQuestion()) demarrerEcouteStop();
+  try {
+    if (!enQuestion() && sonActif) {
+      await reponseFlux(texte, image, t0);
+    } else {
+      const corps = { text: texte, mode };
+      if (mode === "revisions") {
+        corps.matiere = matiereRev;
+        corps.archive = await gArchiveContexte(matiereRev);
+      }
+      if (image) corps.image = { mime: image.mime, data: image.base64 };
+      const r = await fetch("ask?fmt=text&t=" + encodeURIComponent(jeton), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corps),
+        signal: controleur.signal,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erreur || ("erreur " + r.status));
+      const reponse = String(d.reponse || "").trim();
+      if (!reponse) throw new Error("réponse vide");
+      ajouter("lui", reponse);
+      note("réponse en " + ((performance.now() - t0) / 1000).toFixed(1) + " s");
+      if (enQuestion()) {
+        autoCoupe = true;
+        if (sonActif) {
+          modeAffichage("parle", "transmission vocale");
+          await lireVif(reponse);
+        } else {
+          decouper(reponse).slice(0, AVANCE).forEach(chargerTts);
+        }
+      } else if (sonActif) {
+        modeAffichage("parle", "transmission vocale");
+        await lireVif(reponse);
+      }
+    }
+  } catch (e) {
+    if (String(e && e.name) !== "AbortError") note(String(e.message || e), true);
+  } finally {
+    controleur = null;
+    occupe = false;
+    envoyer.disabled = false;
+    boutonStop.hidden = true;
+    arreterEcouteStop();
+    if (!capture) repos();
+  }
+
+  if (suiteEnAttente) {
+    const q = suiteEnAttente;
+    suiteEnAttente = "";
+    setTimeout(() => { if (!occupe) parler(q); }, 150);
+    return;
+  }
+
+  if (!enQuestion()) { if (!autoCoupe && !suiteEnCours) setTimeout(() => ecouter(true), 450); }
+  else if (!capture) veiller(500);
+}
+
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const texte = champ.value.trim();
+  if (texte || joint) { parler(texte); return; }
+  // Entrée à vide : réveil immédiat
+  if (occupe) interrompre();
+  autoCoupe = false;
+  try { champ.blur(); } catch (err) {}
+  const venaitDe = enQuestion();
+  if (venaitDe) {
+    changerMode("fluide", false);
+    note("mode conversation");
+  }
+  if (capture && capture.but === "veille") {
+    veilleBloquee = true;
+    arreter();
+    setTimeout(() => { veilleBloquee = false; }, 1600);
+  }
+  const ecoute = () => setTimeout(() => { if (!capture) ecouter(true); }, 120);
+  if (venaitDe && sonActif) {
+    modeAffichage("parle", "transmission vocale");
+    jouer("Je vous entends, Monsieur.").then(ecoute, ecoute);
+  } else {
+    ecoute();
+  }
+});
+
+boutonStop.addEventListener("click", () => {
+  interrompre();
+});
+
+function interrompre() {
+  autoCoupe = true;
+  try { if (controleur) controleur.abort(); } catch (e) {}
+  controleur = null;
+  suiteEnAttente = "";
+  couper();
+  arreterEcouteStop();
+  arreter();
+  occupe = false;
+  envoyer.disabled = false;
+  boutonStop.hidden = true;
+  repos();
+  toast("interrompu");
+}
+
+function majVoix() {
+  if (coupe) {
+    coupe.textContent = sonActif ? "🔊" : "🔇";
+    coupe.title = sonActif ? "voix activée — appuie pour couper" : "voix coupée — appuie pour activer";
+    coupe.setAttribute("aria-pressed", sonActif ? "true" : "false");
+  }
+  if (voixQuestion) {
+    voixQuestion.textContent = sonActif ? "🔊 Voix" : "🔇 Muet";
+    voixQuestion.classList.toggle("muet", !sonActif);
+    voixQuestion.title = sonActif
+      ? "JARVIS lit toutes ses réponses — appuie pour couper"
+      : "réponses muettes — appuie pour activer la voix";
+    voixQuestion.setAttribute("aria-pressed", sonActif ? "true" : "false");
+  }
+}
+
+function basculerSon() {
+  sonActif = !sonActif;
+  try { localStorage.setItem("jarvis_son", sonActif ? "1" : "0"); } catch (e) {}
+  if (!sonActif) { couper(); arreterEcouteStop(); }
+  majVoix();
+  toast(sonActif ? "voix des réponses activée" : "réponses muettes");
+}
+
+if (coupe) coupe.addEventListener("click", basculerSon);
+if (voixQuestion) voixQuestion.addEventListener("click", basculerSon);
+majVoix();
+
+/* ---------- photo jointe ---------- */
+function majApercu() {
+  if (joint) {
+    apercuImg.src = joint.dataUrl;
+    apercu.classList.add("on");
+  } else {
+    apercu.classList.remove("on");
+    apercuImg.removeAttribute("src");
+  }
+}
+
+boutonJoindre.addEventListener("click", () => fichier.click());
+apercuOte.addEventListener("click", () => { joint = null; majApercu(); });
+
+fichier.addEventListener("change", () => {
+  const f = fichier.files && fichier.files[0];
+  fichier.value = "";
+  if (!f) return;
+  if (!/^image\//.test(f.type)) { note("ce n'est pas une image", true); return; }
+  if (f.size > 7 * 1024 * 1024) { note("image trop lourde (7 Mo max)", true); return; }
+  const lecteurFichier = new FileReader();
+  lecteurFichier.onload = () => {
+    const dataUrl = String(lecteurFichier.result || "");
+    joint = { mime: f.type, base64: dataUrl.split(",")[1] || "", dataUrl };
+    majApercu();
+  };
+  lecteurFichier.onerror = () => note("lecture de l'image impossible", true);
+  lecteurFichier.readAsDataURL(f);
+});
+
+/* ---------- bibliothèque ---------- */
+async function lireBiblio(q) {
+  try {
+    const r = await fetch(MEMO_URL + (q ? "&q=" + encodeURIComponent(q) : ""), { cache: "no-store" });
+    if (r.ok) {
+      const d = await r.json();
+      return { liste: d.sauvegardes || [], serveur: true };
+    }
+  } catch (e) { /* repli local */ }
+  const local = biblioLocale();
+  const f = q ? local.filter((s) => ((s.texte || "") + " " + (s.question || "")).toLowerCase().includes(q.toLowerCase())) : local;
+  return { liste: f, serveur: false };
+}
+
+async function ouvrirBiblio() {
+  biblio.hidden = false;
+  await dessinerBiblio(biblioRecherche.value.trim());
+}
+
+async function dessinerBiblio(q) {
+  biblioListe.innerHTML = "";
+  const attente = document.createElement("div");
+  attente.className = "vide-biblio";
+  attente.textContent = "chargement…";
+  biblioListe.appendChild(attente);
+  const d = await lireBiblio(q);
+  biblioListe.innerHTML = "";
+  if (!d.liste.length) {
+    const v = document.createElement("div");
+    v.className = "vide-biblio";
+    v.textContent = q ? "aucun résultat" : "aucune réponse enregistrée — utilise « enregistrer » sous une réponse";
+    biblioListe.appendChild(v);
+    return;
+  }
+  d.liste.forEach((s) => {
+    const bloc = document.createElement("div");
+    bloc.className = "sauve";
+    const qEl = document.createElement("div");
+    qEl.className = "sauve-q";
+    qEl.textContent = (s.question || "question") + " · " + heure(s.cree);
+    const corps = document.createElement("div");
+    corps.className = "md";
+    corps.innerHTML = md(s.texte || "");
+    const actes = document.createElement("div");
+    actes.className = "sauve-actes";
+    actes.appendChild(boutonActe("Copier", () => copier(s.texte || "")));
+    actes.appendChild(boutonActe("Supprimer", async (b) => {
+      b.disabled = true;
+      if (d.serveur && typeof s.id === "number") {
+        try {
+          await fetch(MEMO_URL + "&id=" + s.id, { method: "DELETE" });
+        } catch (e) {}
+      } else {
+        biblioLocaleEcrire(biblioLocale().filter((x) => x.id !== s.id));
+      }
+      bloc.remove();
+      toast("supprimé");
+    }));
+    bloc.appendChild(qEl);
+    bloc.appendChild(corps);
+    bloc.appendChild(actes);
+    biblioListe.appendChild(bloc);
+  });
+}
+
+/* ---------- modifications du code ---------- */
+const panneauProps = document.getElementById("propositions");
+const listeProps = document.getElementById("liste-propositions");
+const nbProps = document.getElementById("nb-props");
+const URL_PROPS = "/propositions";
+
+async function propositionsLire() {
+  try {
+    const r = await fetch(URL_PROPS, { cache: "no-store" });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.propositions || [];
+  } catch (e) { return null; }
+}
+
+function quand(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) + " " + heure(iso);
+}
+
+async function majBadge() {
+  const liste = await propositionsLire();
+  if (!liste) return [];
+  const n = liste.filter((p) => p.statut === "attente" || p.statut === "a_generer").length;
+  nbProps.textContent = String(n);
+  nbProps.hidden = n === 0;
+  const attente = liste.filter((p) => p.statut === "attente");
+  const signature = attente.map((p) => p.id + ":" + (p.maj || "") + ":" + (p.resume || "")).join("|");
+  if (signature !== propositionsSignature) {
+    propositionsSignature = signature;
+    propositionsChat = attente;
+    rendre();
+  }
+  if (!panneauProps.hidden) dessinerPropositions(liste);
+  return liste;
+}
+
+function etatLisible(statut, cible) {
+  if (statut === "a_generer") return cible === "web" ? "l'agent GitHub prépare la modification…" : "le PC prépare la modification…";
+  if (statut === "attente") return "en attente de ta décision";
+  if (statut === "validee") return "validée — le PC va l'appliquer";
+  if (statut === "appliquee") return "appliquée et compilée";
+  if (statut === "refusee") return "refusée";
+  return statut || "";
+}
+
+function blocProposition(p) {
+  const bloc = document.createElement("div");
+  bloc.className = "prop";
+  const titre = document.createElement("b");
+  titre.textContent = p.demande || "modification";
+  const etat = document.createElement("span");
+  etat.className = "etat";
+  etat.textContent = etatLisible(p.statut, p.cible) + " · " + quand(p.maj || p.cree);
+  bloc.appendChild(titre);
+  bloc.appendChild(etat);
+  if (p.resume) {
+    const pre = document.createElement("pre");
+    pre.textContent = p.resume;
+    bloc.appendChild(pre);
+  }
+  if (p.statut === "attente") {
+    const actes = document.createElement("div");
+    actes.className = "actes";
+    actes.appendChild(boutonActe("Valider", async (b) => {
+      b.disabled = true;
+      if (!(await decider(p.id, "validee"))) { b.disabled = false; return; }
+      toast("validée — le PC applique");
+      dessinerPropositions(await majBadge());
+    }, "ok"));
+    actes.appendChild(boutonActe("Refuser", async (b) => {
+      b.disabled = true;
+      if (!(await decider(p.id, "refusee"))) { b.disabled = false; return; }
+      toast("refusée");
+      dessinerPropositions(await majBadge());
+    }, "no"));
+    bloc.appendChild(actes);
+  }
+  return bloc;
+}
+
+function dessinerPropositions(liste) {
+  const y = listeProps.scrollTop;
+  listeProps.innerHTML = "";
+  if (!liste || !liste.length) {
+    const v = document.createElement("div");
+    v.className = "prop-vide";
+    v.textContent = "aucune proposition — sur le PC : python auto_ameliorer.py \"ta demande\"";
+    listeProps.appendChild(v);
+    return;
+  }
+  const aValider = liste.filter((p) => p.statut === "attente");
+  const enPreparation = liste.filter((p) => p.statut === "a_generer");
+  const historique = liste.filter((p) => !["attente", "a_generer"].includes(p.statut));
+  const groupe = (titre) => {
+    const g = document.createElement("div");
+    g.className = "prop-groupe";
+    g.textContent = titre;
+    listeProps.appendChild(g);
+  };
+  if (aValider.length) {
+    groupe("À valider (" + aValider.length + ")");
+    aValider.forEach((p) => listeProps.appendChild(blocProposition(p)));
+  }
+  if (enPreparation.length) {
+    groupe("En préparation (" + enPreparation.length + ")");
+    enPreparation.forEach((p) => listeProps.appendChild(blocProposition(p)));
+  }
+  if (historique.length) {
+    groupe("Historique des modifications (" + historique.length + ")");
+    historique.forEach((p) => listeProps.appendChild(blocProposition(p)));
+  }
+  listeProps.scrollTop = y;
+}
+
+async function decider(id, statut) {
+  try {
+    const r = await fetch(URL_PROPS + "?id=" + id, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ statut }),
+    });
+    if (!r.ok) throw new Error("refus " + r.status);
+    return true;
+  } catch (e) {
+    note("décision non transmise", true);
+    return false;
+  }
+}
+
+async function ouvrirPropositions() {
+  panneauProps.hidden = false;
+  dessinerPropositions(await majBadge());
+}
+
+document.getElementById("ouvrir-propositions").addEventListener("click", ouvrirPropositions);
+
+document.getElementById("fermer-propositions").addEventListener("click", () => { panneauProps.hidden = true; });
+panneauProps.addEventListener("click", (e) => { if (e.target === panneauProps) panneauProps.hidden = true; });
+document.getElementById("rafraichir-propositions").addEventListener("click", async () => {
+  dessinerPropositions(await majBadge());
+});
+
+document.getElementById("cle-appareil").addEventListener("click", async () => {
+  try {
+    const r = await fetch("/acces?cle=1", { method: "POST" });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(d.erreur || "refus"); return; }
+    const bloc = document.createElement("div");
+    bloc.className = "prop";
+    const titre = document.createElement("b");
+    titre.textContent = "Clé pour ton PC (montrée une seule fois)";
+    const aide = document.createElement("span");
+    aide.className = "etat";
+    aide.textContent = "à coller dans C:\\Users\\Antoine\\jarvis\\.env sous la forme  JARVIS_CLE=…";
+    const pre = document.createElement("pre");
+    pre.textContent = d.cle;
+    const actes = document.createElement("div");
+    actes.className = "actes";
+    actes.appendChild(boutonActe("Copier", () => copier(d.cle), "ok"));
+    bloc.appendChild(titre);
+    bloc.appendChild(aide);
+    bloc.appendChild(pre);
+    bloc.appendChild(actes);
+    listeProps.prepend(bloc);
+    toast("clé créée — copie-la maintenant");
+  } catch (e) {
+    toast("impossible de créer la clé");
+  }
+});
+
+
+document.getElementById("ouvrir-biblio").addEventListener("click", ouvrirBiblio);
+document.getElementById("fermer-biblio").addEventListener("click", () => { biblio.hidden = true; });
+biblio.addEventListener("click", (e) => { if (e.target === biblio) biblio.hidden = true; });
+let minuteurRecherche = null;
+biblioRecherche.addEventListener("input", () => {
+  clearTimeout(minuteurRecherche);
+  minuteurRecherche = setTimeout(() => dessinerBiblio(biblioRecherche.value.trim()), 250);
+});
+
+document.getElementById("biblio-export").addEventListener("click", async () => {
+  const d = await lireBiblio("");
+  if (!d.liste.length) { toast("rien à exporter"); return; }
+  const morceaux = ["# Réponses enregistrées — JARVIS", ""];
+  d.liste.forEach((s) => {
+    morceaux.push("## " + (s.question || "question"));
+    morceaux.push("");
+    morceaux.push(s.texte || "");
+    morceaux.push("");
+    morceaux.push("---");
+    morceaux.push("");
+  });
+  const blob = new Blob([morceaux.join("\n")], { type: "text/markdown;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "jarvis-reponses.md";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast("export markdown");
+});
+
+/* ---------- micro ---------- */
+function enBase64(blob) {
+  return new Promise((ok, ko) => {
+    const f = new FileReader();
+    f.onload = () => ok(String(f.result).split(",")[1] || "");
+    f.onerror = ko;
+    f.readAsDataURL(blob);
+  });
+}
+
+function typeAudio() {
+  if (typeof MediaRecorder === "undefined") return "";
+  const essais = ["audio/mp4", "audio/mp4;codecs=mp4a.40.2", "audio/webm;codecs=opus", "audio/webm"];
+  for (const t of essais) {
+    try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (e) {}
+  }
+  return "";
+}
+
+function arreter() {
+  if (capture && capture.rec && capture.rec.state !== "inactive") {
+    try { capture.rec.stop(); } catch (e) {}
+  }
+}
+
+/* ---------- detection de parole ---------- */
+/* Le navigateur ralentit les minuteurs d'un onglet en arriere-plan (1 s, puis
+   1 min). Le calcul du silence se fait donc dans le fil audio (AudioWorklet),
+   qui continue de tourner quand la page est cachee ; les minuteurs ne servent
+   plus que de filet de securite. */
+const CODE_VAD = `
+class VadJarvis extends AudioWorkletProcessor {
+  constructor(o) {
+    super();
+    const p = (o && o.processorOptions) || {};
+    this.silenceMs = p.silenceMs || 1100;
+    this.minMs = p.minMs || 350;
+    this.maxMs = p.maxMs || 22000;
+    this.videMs = p.videMs || 8000;
+    this.bruit = 0.006;
+    this.parle = false;
+    this.silence = 0;
+    this.total = 0;
+    this.fini = false;
+  }
+  fin(raison) {
+    if (this.fini) return false;
+    this.fini = true;
+    this.port.postMessage({ type: "fin", raison: raison });
+    return false;
+  }
+  process(entrees) {
+    if (this.fini) return false;
+    const e = entrees[0] && entrees[0][0];
+    if (!e) return true;
+    let s = 0;
+    for (let i = 0; i < e.length; i++) s += e[i] * e[i];
+    const rms = Math.sqrt(s / e.length);
+    const ms = (e.length / (sampleRate || 48000)) * 1000;
+    this.total += ms;
+    if (!this.parle) this.bruit = this.bruit * 0.97 + rms * 0.03;
+    const seuilParole = Math.max(0.018, this.bruit * 2.4);
+    const seuilSilence = Math.max(0.010, this.bruit * 1.6);
+    if (rms > seuilParole) {
+      if (!this.parle) this.port.postMessage({ type: "parle" });
+      this.parle = true;
+      this.silence = 0;
+    } else if (this.parle) {
+      if (rms < seuilSilence) this.silence += ms;
+      else this.silence = 0;
+      if (this.silence >= this.silenceMs && this.total >= this.minMs) return this.fin("silence");
+    } else if (this.total >= this.videMs) {
+      return this.fin("vide");
+    }
+    if (this.total >= this.maxMs) return this.fin("duree");
+    return true;
+  }
+}
+registerProcessor("vad-jarvis", VadJarvis);
+`;
+
+let ctxEcoute = null;
+let urlVad = null;
+let vadCharge = null;
+let veille = null;
+
+/* meme logique que l'AudioWorklet, pour les navigateurs qui n'en ont pas */
+function vadJs(videMs) {
+  const o = { silenceMs: SILENCE_MS, minMs: MIN_MS, maxMs: MAX_MS + 2000, videMs: videMs || 8000 };
+  let bruit = 0.006, parle = false, silence = 0, total = 0, fini = false;
+  return {
+    parle() { return parle; },
+    give(ms, rms) {
+      if (fini) return "";
+      total += ms;
+      if (!parle) bruit = bruit * 0.97 + rms * 0.03;
+      const seuilParole = Math.max(0.018, bruit * 2.4);
+      const seuilSilence = Math.max(0.010, bruit * 1.6);
+      if (rms > seuilParole) {
+        const premier = !parle;
+        parle = true;
+        silence = 0;
+        return premier ? "parle" : "";
+      }
+      if (parle) {
+        if (rms < seuilSilence) silence += ms;
+        else silence = 0;
+        if (silence >= o.silenceMs && total >= o.minMs) { fini = true; return "silence"; }
+      } else if (total >= o.videMs) {
+        fini = true;
+        return "vide";
+      }
+      if (total >= o.maxMs) { fini = true; return "duree"; }
+      return "";
+    },
+  };
+}
+
+function niveauRms(ana, tampon) {
+  ana.getFloatTimeDomainData(tampon);
+  let s = 0;
+  for (let i = 0; i < tampon.length; i++) s += tampon[i] * tampon[i];
+  return Math.sqrt(s / tampon.length);
+}
+
+/* ecran allume pendant l'ecoute : sur Android, l'ecran qui s'eteint endort l'onglet */
+async function garderEcran() {
+  try {
+    if (!navigator.wakeLock || veille) return;
+    veille = await navigator.wakeLock.request("screen");
+    veille.addEventListener("release", () => { veille = null; });
+  } catch (e) { veille = null; }
+}
+function relacherEcran() {
+  if (!veille) return;
+  try { veille.release(); } catch (e) {}
+  veille = null;
+}
+
+async function ecouter(auto, raison) {
+  if (capture) return;
+  if (suiteEnCours && raison !== "suite") return;
+  if (occupe && raison !== "suite") return;
+  if (raison === "veille" && !veilleVoulue) return;
+  const but = raison || (enQuestion() ? "question" : "conversation");
+  const vide = but === "veille" ? 20000 : 8000;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    note("micro non disponible sur ce navigateur", true);
+    return;
+  }
+  couper();
+  modeAffichage("ecoute", but === "veille" ? "veille — dis « hey Jarvis »" : "à l'écoute…");
+  micro.classList.add("enregistre");
+  micro.textContent = "■";
+
+  let flux;
+  try {
+    flux = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+  } catch (e) {
+    micro.classList.remove("enregistre");
+    micro.textContent = "🎙";
+    repos();
+    const m = String(e && e.name || "");
+    if (m === "NotAllowedError" || m === "SecurityError") {
+      note("micro refusé — autorise le micro pour ce site", true);
+      if (mode === "fluide") { mode = "questions"; localStorage.setItem(MEMO_MODE, mode); majModes(); }
+    } else {
+      note("micro indisponible", true);
+    }
+    return;
+  }
+
+  const t = typeAudio();
+  let rec;
+  try {
+    rec = t ? new MediaRecorder(flux, { mimeType: t }) : new MediaRecorder(flux);
+  } catch (e) {
+    flux.getTracks().forEach((x) => x.stop());
+    micro.classList.remove("enregistre");
+    micro.textContent = "🎙";
+    repos();
+    note("enregistrement impossible", true);
+    return;
+  }
+
+  const morceaux = [];
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) morceaux.push(e.data); };
+
+  const debut = performance.now();
+  let parle = false;
+  let motif = "";
+  let ferme = false;
+  let minuteur = 0;
+  let chien = 0;
+  let ctx = null, src = null, ana = null, noeud = null, proc = null, muet = null;
+  const tampon = new Float32Array(1024);
+
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) throw new Error("audio absent");
+    if (!ctxEcoute) ctxEcoute = new AC();
+    ctx = ctxEcoute;
+    if (ctx.state === "suspended") { try { await ctx.resume(); } catch (e) {} }
+    src = ctx.createMediaStreamSource(flux);
+  } catch (e) { src = null; }
+
+  // 1. le bon chemin : la detection tourne dans le fil audio
+  if (src && ctx && ctx.audioWorklet && typeof AudioWorkletNode !== "undefined") {
+    try {
+      if (!urlVad) urlVad = URL.createObjectURL(new Blob([CODE_VAD], { type: "application/javascript" }));
+      if (!vadCharge) {
+        vadCharge = ctx.audioWorklet.addModule(urlVad).catch((e) => { vadCharge = null; throw e; });
+      }
+      await vadCharge;
+      noeud = new AudioWorkletNode(ctx, "vad-jarvis", {
+        processorOptions: { silenceMs: SILENCE_MS, minMs: MIN_MS, maxMs: MAX_MS + 2000, videMs: vide },
+      });
+      noeud.port.onmessage = (ev) => {
+        const d = ev.data || {};
+        if (d.type === "parle") parle = true;
+        else if (d.type === "fin" && !ferme) { motif = d.raison || "duree"; arreter(); }
+      };
+      muet = ctx.createGain();
+      muet.gain.value = 0;
+      src.connect(noeud);
+      noeud.connect(muet);
+      muet.connect(ctx.destination);
+    } catch (e) {
+      try { if (noeud) noeud.disconnect(); } catch (x) {}
+      noeud = null;
+    }
+  }
+
+  // 2. les vieux navigateurs : ScriptProcessor
+  if (src && ctx && !noeud && ctx.createScriptProcessor) {
+    try {
+      proc = ctx.createScriptProcessor(2048, 1, 1);
+      const v = vadJs(vide);
+      proc.onaudioprocess = (ev) => {
+        if (ferme) return;
+        const d = ev.inputBuffer.getChannelData(0);
+        let s = 0;
+        for (let i = 0; i < d.length; i++) s += d[i] * d[i];
+        const evt = v.give((d.length / (ctx.sampleRate || 48000)) * 1000, Math.sqrt(s / d.length));
+        if (evt === "parle") parle = true;
+        else if (evt) { motif = evt; arreter(); }
+      };
+      muet = ctx.createGain();
+      muet.gain.value = 0;
+      src.connect(proc);
+      proc.connect(muet);
+      muet.connect(ctx.destination);
+    } catch (e) {
+      try { if (proc) proc.disconnect(); } catch (x) {}
+      proc = null;
+    }
+  }
+
+  // 3. dernier repli : on mesure le niveau au minuteur (ancien systeme)
+  if (src && ctx && !noeud && !proc) {
+    try {
+      ana = ctx.createAnalyser();
+      ana.fftSize = 1024;
+      src.connect(ana);
+      const v = vadJs(vide);
+      minuteur = setInterval(() => {
+        if (!capture) { clearInterval(minuteur); return; }
+        if (ctx.state === "suspended") { try { ctx.resume().catch(() => {}); } catch (e) {} }
+        const evt = v.give(250, niveauRms(ana, tampon));
+        if (evt === "parle") parle = true;
+        else if (evt) { motif = evt; arreter(); }
+      }, 250);
+    } catch (e) { ana = null; }
+  }
+
+  capture = { rec, flux, ctx, but, parle: () => parle };
+
+  // le telephone peut couper le micro quand l'appli passe derriere : on le voit
+  flux.getAudioTracks().forEach((piste) => {
+    piste.onended = () => {
+      if (!capture || capture.flux !== flux) return;
+      motif = "coupe";
+      arreter();
+    };
+    piste.onmute = () => {
+      if (!capture || capture.flux !== flux) return;
+      setTimeout(() => {
+        if (!capture || capture.flux !== flux) return;
+        if (piste.muted) { motif = "coupe"; arreter(); }
+      }, 2500);
+    };
+  });
+
+  rec.onstop = async () => {
+    if (ferme) return;
+    ferme = true;
+    if (minuteur) { clearInterval(minuteur); minuteur = 0; }
+    if (chien) { clearInterval(chien); chien = 0; }
+    try { flux.getTracks().forEach((x) => x.stop()); } catch (e) {}
+    try { if (src) src.disconnect(); } catch (e) {}
+    try { if (noeud) { noeud.port.onmessage = null; noeud.disconnect(); } } catch (e) {}
+    try { if (proc) { proc.onaudioprocess = null; proc.disconnect(); } } catch (e) {}
+    try { if (muet) muet.disconnect(); } catch (e) {}
+    capture = null;
+    relacherEcran();
+    micro.classList.remove("enregistre");
+    micro.textContent = "🎙";
+    const blob = new Blob(morceaux, { type: rec.mimeType || "audio/mp4" });
+    // rien dit, ou micro coupe par le telephone : on relance sans passer par le reseau
+    if (motif === "vide" || motif === "coupe" || blob.size < 1200) {
+      repos();
+      if (mode === "fluide" && !autoCoupe) setTimeout(() => ecouter(true), 150);
+      else if (but === "veille") veiller(400);
+      return;
+    }
+    await traiterAudio(blob, but);
+  };
+
+  try { rec.start(250); } catch (e) { note("enregistrement impossible", true); return; }
+
+  if (mode === "fluide") garderEcran();
+
+  // filet : si le fil audio est gele (onglet endormi), on coupe quand meme
+  chien = setInterval(() => {
+    if (!capture) { clearInterval(chien); return; }
+    if (ctx && ctx.state === "suspended") { try { ctx.resume().catch(() => {}); } catch (e) {} }
+    if (performance.now() - debut > MAX_MS + 4000) { motif = motif || "duree"; arreter(); }
+  }, 1000);
+}
+
+/* revenu sur l'appli : on ne laisse pas une capture en plan */
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (ctxAudio && ctxAudio.state === "suspended") { try { ctxAudio.resume().catch(() => {}); } catch (e) {} }
+  if (capture) {
+    if (capture.parle()) arreter();
+    return;
+  }
+  if (mode === "fluide" && !occupe && !lecteur) setTimeout(() => ecouter(true), 250);
+  else veiller(600);
+});
+
+async function traiterAudio(blob, but) {
+  const suite = but === "suite";
+  if (suite) suiteEnCours = true;
+  if (!suite) {
+    occupe = true;
+    envoyer.disabled = true;
+  }
+  modeAffichage("pense", "transcription…");
+  try {
+    const audio = await enBase64(blob);
+    const r = await fetch("stt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ audio, mime: blob.type || "audio/mp4" }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.erreur || ("transcription " + r.status));
+    let dit = String(d.texte || "").trim();
+    if (but !== "veille") dit = dit.replace(/^\s*(hey\s+)?jarvis\s*[,.;:!?…-]*\s*/i, "").trim();
+    if (suite) suiteEnCours = false;
+    if (!suite) {
+      occupe = false;
+      envoyer.disabled = false;
+    }
+    if (!dit) {
+      if (!suite || !occupe) repos();
+      note("je n'ai rien entendu");
+      if (suite) { if (!occupe) setTimeout(() => ecouter(true), 200); return; }
+      if (mode === "fluide" && !autoCoupe) setTimeout(() => ecouter(true), 200);
+      else if (but === "veille") veiller(300);
+      return;
+    }
+    if (suite) {
+      if (ordreVocal(dit) === "silence") {
+        couper();
+        note("voix coupée");
+        if (!occupe) setTimeout(() => ecouter(true), 200);
+        return;
+      }
+      if (occupe) {
+        suiteEnAttente = dit;
+        note("je finis d'écrire, puis je vous réponds");
+      } else {
+        await parler(dit);
+      }
+      return;
+    }
+
+    // 1. en veille : seul le nom nous interesse
+    if (but === "veille") {
+      if (!veilleVoulue) { repos(); return; }
+      const apres = reveil(dit);
+      if (apres === null) {
+        if (ordreVocal(dit) === "silence") {
+          veilleVoulue = false;
+          try { localStorage.setItem("jarvis_veille", "0"); } catch (e) {}
+          majVeille();
+          repos();
+          note("veille coupée — appuie sur 🎙 ou Entrée pour me réveiller");
+          return;
+        }
+        modeAffichage("", "veille — dis « hey Jarvis »");
+        veiller(200);
+        return;
+      }
+      autoCoupe = false;
+      note("réveillé");
+      if (!apres) {
+        if (sonActif) { modeAffichage("parle", "transmission vocale"); await jouer("Je vous entends, Monsieur."); }
+        setTimeout(() => ecouter(true), 100);
+        return;
+      }
+      dit = apres;
+    }
+
+    // 2. ordres : on change de mode sans passer par le modele
+    const ordre = ordreVocal(dit);
+    if (ordre === "question") {
+      couper();
+      changerMode("questions", false);
+      note("mode question — 🎙 pour dicter, 👂 pour la veille");
+      if (sonActif) await jouer("Mode question.");
+      veiller(800);
+      return;
+    }
+    if (ordre === "revisions") {
+      couper();
+      changerMode("revisions", false);
+      note("mode révisions — fil à part, bouton Gemini en haut à droite");
+      if (sonActif) await jouer("Mode révisions.");
+      setTimeout(() => ecouter(true), 120);
+      return;
+    }
+    if (ordre === "silence") {
+      couper();
+      autoCoupe = true;
+      changerMode("questions", false);
+      note("en veille — dis « hey Jarvis », ou appuie sur 🎙 / Entrée");
+      veiller(800);
+      return;
+    }
+    if (ordre === "conversation") {
+      changerMode("fluide", false);
+      note("mode conversation : parle, il enchaîne tout seul");
+      setTimeout(() => ecouter(true), 100);
+      return;
+    }
+
+    await parler(dit);
+  } catch (e) {
+    if (suite) suiteEnCours = false;
+    if (!suite) {
+      occupe = false;
+      envoyer.disabled = false;
+      repos();
+    } else if (!occupe) {
+      setTimeout(() => ecouter(true), 300);
+    }
+    note(String(e.message || e), true);
+  }
+}
+
+function parlerMaintenant() {
+  if (occupe) interrompre();
+  autoCoupe = false;
+  if (capture) {
+    veilleBloquee = true;
+    arreter();
+    setTimeout(() => {
+      veilleBloquee = false;
+      if (!capture) ecouter(false);
+    }, 350);
+    return;
+  }
+  ecouter(false);
+}
+
+micro.addEventListener("click", () => {
+  if (capture && capture.but !== "veille") { arreter(); return; }
+  parlerMaintenant();
+});
+
+reacteur.addEventListener("click", () => {
+  if (capture && capture.but !== "veille") { arreter(); return; }
+  if (lecteur) { couper(); return; }
+  parlerMaintenant();
+});
+
+/* ---------- modes ---------- */
+document.querySelectorAll(".mode").forEach((b) => {
+  b.addEventListener("click", () => {
+    const avant = mode;
+    changerMode(b.dataset.mode, true);
+    if (mode === "questions") {
+      if (avant !== mode) note("mode question — 🎙 pour dicter, 👂 pour la veille");
+      veiller(700);
+    } else if (avant !== mode) {
+      note("mode conversation : parle, il enchaîne tout seul");
+      setTimeout(() => ecouter(true), 150);
+    }
+  });
+});
+
+/* ---------- mes chats Gemini importés ---------- */
+const gVoile = document.getElementById("gvoile");
+const gTitre = document.getElementById("gtitre");
+const gBarre = document.getElementById("gbarre");
+const gListe = document.getElementById("gliste");
+const gCorps = document.getElementById("gcorps");
+const gRetour = document.getElementById("gretour");
+const gFermer = document.getElementById("gfermer");
+const gRecherche = document.getElementById("grecherche");
+const gImport = document.getElementById("gimporter");
+const fichierGemini = document.getElementById("fichier-gemini");
+let gChats = null;
+
+function gdb() {
+  return new Promise((ok, ko) => {
+    if (!window.indexedDB) { ko(new Error("stockage indisponible")); return; }
+    const r = indexedDB.open("jarvis_gemini", 1);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains("chats")) d.createObjectStore("chats", { keyPath: "id" });
+    };
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => ko(r.error || new Error("stockage indisponible"));
+  });
+}
+
+async function gLireDisque() {
+  const d = await gdb();
+  return new Promise((ok, ko) => {
+    const t = d.transaction("chats", "readonly");
+    const q = t.objectStore("chats").getAll();
+    q.onsuccess = () => ok(q.result || []);
+    q.onerror = () => ko(q.error);
+  });
+}
+
+async function gEcrire(chats) {
+  const d = await gdb();
+  return new Promise((ok, ko) => {
+    const t = d.transaction("chats", "readwrite");
+    chats.forEach((c) => t.objectStore("chats").put(c));
+    t.oncomplete = () => ok(true);
+    t.onerror = () => ko(t.error);
+  });
+}
+
+function gTexteHtml(html) {
+  const s = String(html || "");
+  if (!s) return "";
+  const d = new DOMParser().parseFromString(s, "text/html");
+  if (!d.body) return "";
+  d.body.querySelectorAll("br").forEach((b) => b.replaceWith("\n"));
+  d.body.querySelectorAll("p, div, li, tr, h1, h2, h3, h4, h5, h6, pre, blockquote").forEach((n) => n.append("\n"));
+  return String(d.body.textContent || "").replace(/\u00a0/g, " ")
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function gSujet(texte) {
+  const t = sansAccents(texte);
+  const tests = [
+    ["maths", /\b(maths?|mathematiques?|equation|thales|pythagore|derivee|fonction|vecteur|probabilite|geometrie)\b/],
+    ["histoire", /\b(histoire|guerre mondiale|napoleon|revolution|antiquite|1945|1914)\b/],
+    ["hggsp", /\b(hggsp|geopolitique|diplomatie|frontiere|puissance|migration)\b/],
+    ["ses", /\b(ses|economie|inflation|chomage|marche|socialisation|inegalite)\b/],
+    ["francais", /\b(francais|commentaire|dissertation|poeme|rimbaud|baudelaire|theatre|roman)\b/],
+    ["anglais", /\b(anglais|english|grammar|vocabulary)\b/],
+    ["espagnol", /\b(espagnol|espanol|spanish)\b/],
+    ["physique", /\b(physique|energie|force|vitesse|optique|electricite|atome|mouvement)\b/],
+    ["svt", /\b(svt|biologie|cellule|genetique|ecosysteme|adn|organisme|roche)\b/],
+  ];
+  for (const t2 of tests) if (t2[1].test(t)) return t2[0];
+  return "";
+}
+
+function gConvertir(donnees) {
+  if (donnees && !Array.isArray(donnees) && Array.isArray(donnees.chats)) {
+    const cs = donnees.chats.filter((c) => c && c.tours && c.tours.length).map((c) => ({
+      id: String(c.id || ("n" + Math.random().toString(36).slice(2))),
+      titre: String(c.titre || c.tours[0].q || "chat").slice(0, 90),
+      debut: String(c.debut || new Date().toISOString()),
+      sujet: String(c.sujet || ""),
+      tours: c.tours.map((t) => ({ q: String(t.q || ""), r: String(t.r || ""), iso: String(t.iso || "") })),
+    }));
+    return { chats: cs, tours: cs.reduce((n, c) => n + c.tours.length, 0) };
+  }
+  const arr = Array.isArray(donnees) ? donnees
+    : (donnees && (donnees.items || donnees.activity || donnees.records)) || [];
+  const map = new Map();
+  let tours = 0;
+  arr.forEach((r) => {
+    if (!r || typeof r !== "object") return;
+    const titre = String(r.title || "");
+    const url = String(r.titleUrl || "");
+    const prod = String(r.products || "") + " " + String(r.header || "");
+    const gem = /gemini|bard/i.test(prod) || url.indexOf("gemini.google.com") >= 0 || /^Prompted\b/i.test(titre);
+    if (!gem || /^Used\b/i.test(titre)) return;
+    const q = titre.replace(/^Prompted\s+/i, "").trim();
+    if (!q) return;
+    const item = Array.isArray(r.safeHtmlItem) ? (r.safeHtmlItem[0] || {}) : (r.safeHtmlItem || {});
+    const rep = gTexteHtml(item.html || r.safeHtml || "");
+    const iso = String(r.time || "");
+    const m = url.match(/\/(?:app|share)\/([A-Za-z0-9_-]{6,})/);
+    const id = m ? m[1] : "j" + (iso.slice(0, 10) || "sans-date");
+    const c = map.get(id) || { id: id, titre: "", debut: "", tours: [] };
+    if (!c.titre) c.titre = q.length > 90 ? q.slice(0, 88) + "…" : q;
+    if (iso && (!c.debut || iso < c.debut)) c.debut = iso;
+    c.tours.push({ q: q, r: rep, iso: iso });
+    map.set(id, c);
+    tours++;
+  });
+  const chats = Array.from(map.values()).filter((c) => c.tours.length);
+  chats.forEach((c) => {
+    c.tours.sort((a, b) => String(a.iso).localeCompare(String(b.iso)));
+    c.sujet = gSujet(c.titre + " " + c.tours.slice(0, 4).map((t) => t.q + " " + (t.r || "").slice(0, 400)).join(" "));
+  });
+  return { chats: chats, tours: tours };
+}
+
+function gDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  try { return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }); } catch (e) { return String(iso).slice(0, 10); }
+}
+
+function gNomGroupe(slug) {
+  return slug ? nomMatiere(slug) : "Cours (hors matière)";
+}
+
+async function gChangerMatiere(id, slug) {
+  const c = (gChats || []).filter((x) => x.id === id)[0];
+  if (!c || (c.sujet || "") === slug) return;
+  const lot = [c];
+  c.sujet = slug;
+  if (c.principale) {
+    (gChats || []).forEach((x) => {
+      if (x.id !== id && (x.sujet || "") === slug && x.principale) {
+        x.principale = false;
+        lot.push(x);
+      }
+    });
+  }
+  try {
+    await gEcrire(lot);
+    gChats = await gLireDisque();
+    toast("rangé dans " + gNomGroupe(slug));
+  } catch (e) {
+    toast("rangement impossible");
+  }
+}
+
+async function gBasculerPrincipale(id) {
+  const c = (gChats || []).filter((x) => x.id === id)[0];
+  if (!c) return false;
+  const devient = !c.principale;
+  const lot = [];
+  (gChats || []).forEach((x) => {
+    if (x.id === id) {
+      x.principale = devient;
+      lot.push(x);
+    } else if (devient && (x.sujet || "") === (c.sujet || "") && x.principale) {
+      x.principale = false;
+      lot.push(x);
+    }
+  });
+  try {
+    await gEcrire(lot);
+    gChats = await gLireDisque();
+    toast(devient ? "discussion principale : " + gNomGroupe(c.sujet || "") : "principale retirée");
+    return devient;
+  } catch (e) {
+    toast("enregistrement impossible");
+    return false;
+  }
+}
+
+async function gArchiveContexte(slug) {
+  let tous = gChats;
+  if (!tous) {
+    try { tous = await gLireDisque(); gChats = tous; } catch (e) { tous = []; }
+  }
+  if (!tous || !tous.length) return "";
+  const chats = tous.filter((c) => (c.sujet || "") === (slug || ""));
+  const autres = tous.filter((c) => (c.sujet || "") !== (slug || "") && c.principale);
+  const lignes = [
+    "ARCHIVE GEMINI DE MONSIEUR — discussions importées de son compte Gemini. Ce sont ses vrais échanges de travail : traite-les comme ses souvenirs et ne dis jamais que tu n'es pas connecté à Gemini.",
+    "Matière en cours : " + gNomGroupe(slug) + ".",
+  ];
+  if (!chats.length) {
+    lignes.push("Aucune discussion Gemini importée pour cette matière.");
+  } else {
+    const parDate = chats.slice().sort((a, b) => String(b.debut || "").localeCompare(String(a.debut || "")));
+    const principale = chats.filter((c) => c.principale)[0] || parDate[0];
+    const recente = parDate[0];
+    const bloc = (c, n) => (c.tours || []).slice(-n).map((t) => "Monsieur : " + String(t.q || "").slice(0, 400) + "\nGemini : " + String(t.r || "").slice(0, 900)).join("\n");
+    lignes.push("Discussion principale" + (principale.principale ? "" : " (la plus récente, aucune n'est marquée)") + " : « " + principale.titre + " » — " + gDate(principale.debut) + ".");
+    lignes.push(bloc(principale, 3));
+    if (recente.id !== principale.id) {
+      lignes.push("Discussion la plus récente : « " + recente.titre + " » — " + gDate(recente.debut) + ".");
+      lignes.push(bloc(recente, 2));
+    }
+    lignes.push("Dernières discussions de cette matière : " + parDate.slice(0, 8).map((c) => "« " + c.titre + " » (" + gDate(c.debut) + ")").join(" ; ") + ".");
+  }
+  if (autres.length) {
+    lignes.push("Discussions principales des autres matières : " + autres.map((c) => gNomGroupe(c.sujet || "") + " — « " + c.titre + " »").join(" ; ") + ".");
+  }
+  return lignes.join("\n").slice(0, 9000);
+}
+
+function gLigne(c) {
+  const ligne = document.createElement("div");
+  ligne.className = "gitem" + (c.principale ? " principale" : "");
+  const txt = document.createElement("div");
+  txt.className = "gtxt";
+  const t = document.createElement("b");
+  t.textContent = c.titre;
+  const sous = document.createElement("div");
+  sous.className = "gsous";
+  const s = document.createElement("span");
+  s.textContent = (c.tours.length > 1 ? c.tours.length + " échanges · " : "") + gDate(c.debut);
+  const sel = document.createElement("select");
+  sel.className = "gselmat";
+  sel.title = "ranger dans une matière";
+  sel.appendChild(new Option("Cours (hors matière)", ""));
+  MATIERES.forEach((p) => { if (p[0]) sel.appendChild(new Option(p[1], p[0])); });
+  sel.value = c.sujet || "";
+  sel.addEventListener("click", (e) => e.stopPropagation());
+  sel.addEventListener("change", async () => {
+    await gChangerMatiere(c.id, sel.value);
+    gRendre();
+  });
+  sous.appendChild(s);
+  sous.appendChild(sel);
+  txt.appendChild(t);
+  txt.appendChild(sous);
+  txt.addEventListener("click", () => gLire(c.id));
+  const star = document.createElement("button");
+  star.type = "button";
+  star.className = "gstar" + (c.principale ? " on" : "");
+  star.textContent = c.principale ? "★" : "☆";
+  star.title = c.principale ? "retirer comme discussion principale" : "définir comme principale de " + gNomGroupe(c.sujet || "");
+  star.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    await gBasculerPrincipale(c.id);
+    gRendre();
+  });
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "gdel";
+  del.textContent = "✕";
+  del.title = "supprimer ce chat";
+  del.addEventListener("click", (e) => { e.stopPropagation(); gSupprimer(c.id); });
+  ligne.appendChild(txt);
+  ligne.appendChild(star);
+  ligne.appendChild(del);
+  return ligne;
+}
+
+function gRendre() {
+  if (!gVoile || !gChats) return;
+  const q = sansAccents((gRecherche && gRecherche.value) || "");
+  const liste = gChats
+    .filter((c) => !q || sansAccents(c.titre + " " + (c.sujet || "") + " " + c.tours.map((t) => t.q).join(" ")).indexOf(q) >= 0)
+    .sort((a, b) => String(b.debut || "").localeCompare(String(a.debut || "")));
+  gListe.innerHTML = "";
+  if (!liste.length) {
+    const v = document.createElement("div");
+    v.className = "gvide";
+    v.textContent = gChats.length
+      ? "aucun chat ne correspond à cette recherche."
+      : "aucun chat pour l'instant. dans Gemini : menu ⋯ du chat → Partager via Drive. dans Drive, télécharge le document en .docx ou .txt, puis importe-le ici avec ⇪ (plusieurs fichiers d'un coup possible). tu peux aussi coller un texte avec ＋.";
+    gListe.appendChild(v);
+    return;
+  }
+  const groupes = new Map();
+  liste.forEach((c) => {
+    const s = c.sujet || "";
+    if (!groupes.has(s)) groupes.set(s, []);
+    groupes.get(s).push(c);
+  });
+  const ordre = MATIERES.map((m) => m[0]);
+  const cles = Array.from(groupes.keys()).sort((a, b) => {
+    const ia = ordre.indexOf(a);
+    const ib = ordre.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  const frag = document.createDocumentFragment();
+  cles.forEach((slug) => {
+    const chats = groupes.get(slug).slice().sort((a, b) => {
+      if (!!b.principale !== !!a.principale) return b.principale ? 1 : -1;
+      return String(b.debut || "").localeCompare(String(a.debut || ""));
+    });
+    const tete = document.createElement("div");
+    tete.className = "ggroupe";
+    const b = document.createElement("b");
+    b.textContent = gNomGroupe(slug);
+    const n = document.createElement("span");
+    n.textContent = chats.length + (chats.length > 1 ? " discussions" : " discussion");
+    tete.appendChild(b);
+    tete.appendChild(n);
+    frag.appendChild(tete);
+    chats.forEach((c) => frag.appendChild(gLigne(c)));
+  });
+  gListe.appendChild(frag);
+}
+
+function gLire(id) {
+  const c = (gChats || []).filter((x) => x.id === id)[0];
+  if (!c || !gCorps) return;
+  gCourant = id;
+  if (gSuppr) gSuppr.hidden = false;
+  gTitre.textContent = c.titre;
+  gBarre.hidden = true;
+  gListe.hidden = true;
+  gCorps.hidden = false;
+  gRetour.hidden = false;
+  gCorps.innerHTML = "";
+  const bar = document.createElement("div");
+  bar.className = "gdetailbar";
+  const lab = document.createElement("span");
+  lab.textContent = "matière";
+  const sel = document.createElement("select");
+  sel.appendChild(new Option("Cours (hors matière)", ""));
+  MATIERES.forEach((p) => { if (p[0]) sel.appendChild(new Option(p[1], p[0])); });
+  sel.value = c.sujet || "";
+  sel.addEventListener("change", async () => {
+    const pos = gCorps.scrollTop;
+    await gChangerMatiere(c.id, sel.value);
+    gLire(c.id);
+    gCorps.scrollTop = pos;
+  });
+  const st = document.createElement("button");
+  st.type = "button";
+  st.className = "gstar" + (c.principale ? " on" : "");
+  st.textContent = c.principale ? "★ Principale" : "☆ Principale";
+  st.title = c.principale ? "retirer comme discussion principale" : "définir comme principale de " + gNomGroupe(c.sujet || "");
+  st.addEventListener("click", async () => {
+    const v = await gBasculerPrincipale(c.id);
+    st.classList.toggle("on", !!v);
+    st.textContent = v ? "★ Principale" : "☆ Principale";
+    st.title = v ? "retirer comme discussion principale" : "définir comme principale de " + gNomGroupe(sel.value);
+  });
+  bar.appendChild(lab);
+  bar.appendChild(sel);
+  bar.appendChild(st);
+  gCorps.appendChild(bar);
+  const d = document.createElement("div");
+  d.className = "gdate";
+  d.textContent = gDate(c.debut) + (c.sujet ? " · " + nomMatiere(c.sujet) : "");
+  gCorps.appendChild(d);
+  c.tours.forEach((t) => {
+    const bloc = document.createElement("div");
+    bloc.className = "gtour";
+    const q = document.createElement("div");
+    q.className = "gq md";
+    q.innerHTML = md(t.q || "");
+    const r = document.createElement("div");
+    r.className = "gr md";
+    r.innerHTML = md(t.r || "");
+    bloc.appendChild(q);
+    bloc.appendChild(r);
+    gCorps.appendChild(bloc);
+  });
+  gCorps.scrollTop = 0;
+}
+
+async function gOuvrir() {
+  if (!gVoile) return;
+  try { gChats = await gLireDisque(); } catch (e) { gChats = gChats || []; toast("stockage local indisponible"); }
+  gVoile.hidden = false;
+  gTitre.textContent = "MES CHATS GEMINI";
+  gBarre.hidden = false;
+  gListe.hidden = false;
+  gCorps.hidden = true;
+  gRetour.hidden = true;
+  if (gColler) gColler.hidden = true;
+  if (gRecherche) gRecherche.value = "";
+  gRendre();
+}
+
+function gFermerPanneau() {
+  if (!gVoile) return;
+  gVoile.hidden = true;
+  gCorps.innerHTML = "";
+}
+
+if (gFermer) gFermer.addEventListener("click", gFermerPanneau);
+if (gRetour) gRetour.addEventListener("click", gRetourListe);
+if (gImport) gImport.addEventListener("click", () => { if (fichierGemini) fichierGemini.click(); });
+
+const gColler = document.getElementById("gcoller");
+const gTexte = document.getElementById("gtexte");
+const gCollerBtn = document.getElementById("gcollerbtn");
+const gEnregistrer = document.getElementById("genregistrer");
+const gAnnuler = document.getElementById("gannuler");
+
+function gDepuisTexte(txt) {
+  const brut = String(txt || "").replace(/\r/g, "")
+    .replace(/(vous avez dit|you said|gemini a dit|gemini a repondu|gemini said|gemini responded)/gi, "\n$1\n")
+    .replace(/\n{3,}/g, "\n\n").trim();
+  if (!brut) return null;
+  const lignes = brut.split("\n");
+  const blocs = [];
+  let role = "";
+  let buf = [];
+  const pousse = () => {
+    const t = buf.join("\n").trim();
+    if (t) blocs.push({ role: role, texte: t });
+    buf = [];
+  };
+  lignes.forEach((l) => {
+    const m = l.match(/^\s*(vous avez dit|you said|gemini a dit|gemini a repondu|gemini said|gemini responded|vous|you|utilisateur|user|gemini|assistant|modele|model)\s*:?\s*$/i);
+    if (m) {
+      pousse();
+      role = /^(gemini|assistant|modele|model)/i.test(m[1]) ? "lui" : "moi";
+      return;
+    }
+    buf.push(l);
+  });
+  pousse();
+  const tours = [];
+  let q = "";
+  blocs.forEach((b) => {
+    if (b.role === "moi") q = b.texte;
+    else if (b.role === "lui" && q) { tours.push({ q: q, r: b.texte, iso: "" }); q = ""; }
+  });
+  if (q && !tours.length) tours.push({ q: q, r: "", iso: "" });
+  if (!tours.length) {
+    const i = brut.indexOf("\n");
+    tours.push({ q: (i > 0 ? brut.slice(0, i) : brut).trim(), r: i > 0 ? brut.slice(i + 1).trim() : "", iso: "" });
+  }
+  const iso = new Date().toISOString();
+  const titre = tours[0].q.slice(0, 88);
+  return { id: "p" + Date.now().toString(36), titre: titre || "chat collé", debut: iso, sujet: gSujet(titre), tours: tours };
+}
+
+function gCollerOuvrir() {
+  if (!gColler) return;
+  gColler.hidden = false;
+  gListe.hidden = true;
+  gCorps.hidden = true;
+  gBarre.hidden = true;
+  gTitre.textContent = "COLLER UN CHAT";
+  gRetour.hidden = false;
+  gTexte.value = "";
+  setTimeout(() => { try { gTexte.focus(); } catch (e) {} }, 120);
+}
+
+async function gCollerEnregistrer() {
+  const chat = gDepuisTexte(gTexte && gTexte.value);
+  if (!chat) { toast("rien à enregistrer"); return; }
+  try {
+    await gSauverChat(chat);
+  } catch (e) {
+    toast("enregistrement impossible");
+  }
+}
+
+if (gCollerBtn) gCollerBtn.addEventListener("click", gCollerOuvrir);
+if (gEnregistrer) gEnregistrer.addEventListener("click", gCollerEnregistrer);
+if (gAnnuler) gAnnuler.addEventListener("click", () => {
+  gColler.hidden = true;
+  gRetour.hidden = true;
+  gTitre.textContent = "MES CHATS GEMINI";
+  gBarre.hidden = false;
+  gListe.hidden = false;
+  gCorps.hidden = true;
+  gRendre();
+});
+if (gRecherche) gRecherche.addEventListener("input", gRendre);
+
+function gXmlTexte(xml) {
+  return String(xml || "")
+    .replace(/<w:tab\/>/g, "\t")
+    .replace(/<w:br\/>/g, "\n")
+    .replace(/<\/w:p>/g, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'").replace(/&amp;/g, "&")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+async function gDocxTexte(f) {
+  const buf = new Uint8Array(await f.arrayBuffer());
+  if (!buf.length) throw new Error("fichier vide");
+  const dv = new DataView(buf.buffer);
+  let fin = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 70000); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { fin = i; break; }
+  }
+  if (fin < 0) throw new Error("ce n'est pas un .docx");
+  const n = dv.getUint16(fin + 10, true);
+  let p = dv.getUint32(fin + 16, true);
+  for (let k = 0; k < n; k++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const meth = dv.getUint16(p + 10, true);
+    const csize = dv.getUint32(p + 20, true);
+    const nlen = dv.getUint16(p + 28, true);
+    const elen = dv.getUint16(p + 30, true);
+    const clen = dv.getUint16(p + 32, true);
+    const lho = dv.getUint32(p + 42, true);
+    const nom = new TextDecoder().decode(buf.subarray(p + 46, p + 46 + nlen));
+    if (nom === "word/document.xml") {
+      const lnlen = dv.getUint16(lho + 26, true);
+      const lelen = dv.getUint16(lho + 28, true);
+      const debut = lho + 30 + lnlen + lelen;
+      const data = buf.subarray(debut, debut + csize);
+      let octets;
+      if (meth === 0) octets = data;
+      else {
+        if (typeof DecompressionStream === "undefined") throw new Error("docx non lisible ici — télécharge plutôt en .txt");
+        const flux = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+        octets = new Uint8Array(await new Response(flux).arrayBuffer());
+      }
+      return gXmlTexte(new TextDecoder().decode(octets));
+    }
+    p += 46 + nlen + elen + clen;
+  }
+  throw new Error("docx sans texte lisible");
+}
+
+function gTexteFichier(f) {
+  return new Promise((ok, ko) => {
+    if (f.text) { f.text().then(ok, ko); return; }
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result || ""));
+    r.onerror = () => ko(r.error);
+    r.readAsText(f);
+  });
+}
+
+if (fichierGemini) {
+  fichierGemini.addEventListener("change", async () => {
+    const liste = Array.prototype.slice.call(fichierGemini.files || []);
+    fichierGemini.value = "";
+    if (!liste.length) return;
+    let chats = 0;
+    let tours = 0;
+    const rates = [];
+    toast(liste.length > 1 ? "lecture de " + liste.length + " fichiers…" : "lecture du fichier…");
+    for (const f of liste) {
+      if (f.size > 40 * 1024 * 1024) { rates.push(f.name + " (trop gros)"); continue; }
+      try {
+        const nom = String(f.name || "").toLowerCase();
+        const tete = new Uint8Array(await f.slice(0, 8).arrayBuffer());
+        const estPdf = tete[0] === 0x25 && tete[1] === 0x50 && tete[2] === 0x44 && tete[3] === 0x46;
+        const estZip = tete[0] === 0x50 && tete[1] === 0x4b;
+        if (estPdf) {
+          rates.push(f.name + " : c'est un PDF — dans Drive, « Ouvrir avec Google Docs » puis télécharge en .docx");
+          continue;
+        }
+        const teteTxt = new TextDecoder().decode(await f.slice(0, 240).arrayBuffer());
+        const estHtml = /\.html?$/.test(nom) || /^\s*(<!--|<!doctype|<html|<head|<body|<meta|<title)/i.test(teteTxt) || /<html[\s>]/i.test(teteTxt);
+        if (estHtml) {
+          const chat = gDepuisHtml(await gTexteFichier(f));
+          if (!gValide(chat)) { rates.push(f.name); continue; }
+          gAppliquerSujet(chat);
+          await gEcrire([chat]);
+          chats++;
+          tours += chat.tours.length;
+          continue;
+        }
+        if (estZip || /\.docx$/.test(nom)) {
+          const chat = gDepuisTexte(await gDocxTexte(f));
+          if (!gValide(chat)) { rates.push(f.name); continue; }
+          gAppliquerSujet(chat);
+          await gEcrire([chat]);
+          chats++;
+          tours += chat.tours.length;
+          continue;
+        }
+        const txt = await gTexteFichier(f);
+        if (/\.json$/.test(nom) || /^\s*[\[{]/.test(txt)) {
+          const res = gConvertir(JSON.parse(txt));
+          const gardes = res.chats.filter(gValide).map(gAppliquerSujet);
+          if (!gardes.length) { rates.push(f.name); continue; }
+          await gEcrire(gardes);
+          chats += gardes.length;
+          tours += res.tours;
+        } else {
+          const chat = gDepuisTexte(txt);
+          if (!gValide(chat)) { rates.push(f.name); continue; }
+          gAppliquerSujet(chat);
+          await gEcrire([chat]);
+          chats++;
+          tours += chat.tours.length;
+        }
+      } catch (e) {
+        rates.push(f.name + " : " + (e && e.message ? e.message : e));
+      }
+    }
+    if (!chats) {
+      gErreur(rates.length ? "import impossible : " + rates.join(" · ") : "import impossible : fichier non reconnu");
+      return;
+    }
+    gChats = await gLireDisque();
+    toast(chats + " chat(s) · " + tours + " échange(s) importé(s)" + (rates.length ? " · " + rates.length + " refusé(s)" : ""));
+    if (gVoile && !gVoile.hidden) {
+      if (gColler) gColler.hidden = true;
+      gTitre.textContent = "MES CHATS GEMINI";
+      gBarre.hidden = false;
+      gListe.hidden = false;
+      gCorps.hidden = true;
+      gRetour.hidden = true;
+    }
+    gRendre();
+    if (!gVoile || gVoile.hidden) gOuvrir();
+  });
+}
+
+let gCourant = "";
+
+function gHtmlEnTexte(racine) {
+  const copie = racine.cloneNode(true);
+  Array.prototype.slice.call(copie.querySelectorAll("script, style, noscript")).forEach((n) => n.remove());
+  Array.prototype.slice.call(copie.querySelectorAll(".katex, .katex-display, math")).forEach((k) => {
+    const a = k.querySelector('annotation[encoding="application/x-tex"]');
+    const tex = a ? a.textContent : k.textContent;
+    k.replaceWith(document.createTextNode(" " + String(tex || "").trim() + " "));
+  });
+  Array.prototype.slice.call(copie.querySelectorAll("img")).forEach((im) => {
+    const src = im.getAttribute("src") || im.getAttribute("data-src") || "";
+    if (/^https?:/i.test(src)) im.replaceWith(document.createTextNode("\n![](" + src + ")\n"));
+    else im.remove();
+  });
+  return gTexteHtml(copie.innerHTML);
+}
+
+function gDepuisHtml(html) {
+  const d = new DOMParser().parseFromString(String(html || ""), "text/html");
+  const noeuds = Array.prototype.slice.call(d.querySelectorAll("user-query, model-response"));
+  const tours = [];
+  let q = "";
+  noeuds.forEach((el) => {
+    const moi = el.tagName.toLowerCase() === "user-query";
+    const dedans = el.querySelector(moi ? ".query-text, .user-query-text" : "message-content, .markdown, .model-response-text") || el;
+    const t = gHtmlEnTexte(dedans).trim();
+    if (!t) return;
+    if (moi) q = t;
+    else if (q) { tours.push({ q: q, r: t, iso: "" }); q = ""; }
+  });
+  if (q && !tours.length) tours.push({ q: q, r: "", iso: "" });
+  if (!tours.length) {
+    const copie = d.body ? d.body.cloneNode(true) : null;
+    if (copie) {
+      Array.prototype.slice.call(copie.querySelectorAll("script, style, noscript")).forEach((n) => n.remove());
+      const propre = gHtmlEnTexte(d.body);
+      if (/vous avez dit|you said|gemini a dit|gemini said/i.test(propre)) return gDepuisTexte(propre);
+    }
+    return null;
+  }
+  const iso = new Date().toISOString();
+  return { id: "h" + Date.now().toString(36), titre: tours[0].q.slice(0, 88), debut: iso, sujet: gSujet(tours[0].q), tours: tours };
+}
+
+function gValide(chat) {
+  if (!chat || !chat.tours || !chat.tours.length) return false;
+  if (/^\s*(https?:\/\/|<)/i.test(String(chat.titre || ""))) return false;
+  return chat.tours.some((t) => String(t.r || "").trim().length > 0);
+}
+
+function gAppliquerSujet(chat) {
+  const sel = document.getElementById("gsujet");
+  const force = sel ? sel.value : "";
+  if (force) chat.sujet = force;
+  return chat;
+}
+
+async function gEffacer(id) {
+  const d = await gdb();
+  return new Promise((ok, ko) => {
+    const t = d.transaction("chats", "readwrite");
+    t.objectStore("chats").delete(id);
+    t.oncomplete = () => ok(true);
+    t.onerror = () => ko(t.error);
+  });
+}
+
+function gErreur(msg) {
+  if (!gListe) { toast(msg); return; }
+  const d = document.createElement("div");
+  d.className = "gvide";
+  d.textContent = msg;
+  if (gListe.firstChild) gListe.insertBefore(d, gListe.firstChild);
+  else gListe.appendChild(d);
+}
+
+function gRetourListe() {
+  if (gColler) gColler.hidden = true;
+  if (gSuppr) gSuppr.hidden = true;
+  gCourant = "";
+  gTitre.textContent = "MES CHATS GEMINI";
+  gBarre.hidden = false;
+  gListe.hidden = false;
+  gCorps.hidden = true;
+  gRetour.hidden = true;
+  gRendre();
+}
+
+async function gSupprimer(id) {
+  if (!window.confirm("supprimer ce chat de Jarvis ?")) return;
+  try {
+    await gEffacer(id);
+    gChats = await gLireDisque();
+    if (gCourant === id) gRetourListe();
+    else gRendre();
+    toast("chat supprimé");
+  } catch (e) { toast("suppression impossible"); }
+}
+
+async function gSauverChat(chat) {
+  if (!chat) { toast("rien à enregistrer"); return false; }
+  if (!gValide(chat)) { toast("ce contenu ne ressemble pas à un chat (pas de réponse)"); return false; }
+  gAppliquerSujet(chat);
+  await gEcrire([chat]);
+  gChats = await gLireDisque();
+  toast(chat.tours.length + " échange(s) enregistré(s)");
+  if (gVoile && !gVoile.hidden) {
+    if (gColler) gColler.hidden = true;
+    gTitre.textContent = "MES CHATS GEMINI";
+    gBarre.hidden = false;
+    gListe.hidden = false;
+    gCorps.hidden = true;
+    gRetour.hidden = true;
+  }
+  gRendre();
+  if (!gVoile || gVoile.hidden) gOuvrir();
+  return true;
+}
+
+async function gDepuisLien(lien) {
+  const r = await fetch("gemini-lien", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url: lien }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.ok) throw new Error(d.erreur || ("lecture " + r.status));
+  if (d.docx) {
+    const bin = atob(d.docx);
+    const octets = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) octets[i] = bin.charCodeAt(i);
+    return gDepuisTexte(await gDocxTexte(new File([octets], "chat.docx")));
+  }
+  return gDepuisTexte(d.texte || "");
+}
+
+const gSuppr = document.getElementById("gsuppr");
+if (gSuppr) gSuppr.addEventListener("click", () => { if (gCourant) gSupprimer(gCourant); });
+
+const gSujetSel = document.getElementById("gsujet");
+if (gSujetSel) {
+  const a = document.createElement("option");
+  a.value = "";
+  a.textContent = "Auto (deviner)";
+  gSujetSel.appendChild(a);
+  MATIERES.forEach((p) => {
+    const o = document.createElement("option");
+    o.value = p[0];
+    o.textContent = p[1];
+    gSujetSel.appendChild(o);
+  });
+}
+
+const gLienBtn = document.getElementById("glienbtn");
+if (gLienBtn) {
+  gLienBtn.addEventListener("click", async () => {
+    const lien = window.prompt("Colle le lien Drive du chat (partage : tous les utilisateurs disposant du lien)");
+    if (!lien) return;
+    if (/gemini\.google\.com\/share/i.test(lien)) {
+      toast("lien de partage Gemini : inutilisable ici — passe par le fichier .docx");
+      return;
+    }
+    toast("lecture du lien…");
+    try {
+      const chat = await gDepuisLien(lien);
+      if (!chat) { toast("rien de lisible dans ce document"); return; }
+      await gSauverChat(chat);
+    } catch (e) {
+      toast("lien illisible : " + (e && e.message ? e.message : e));
+    }
+  });
+}
+
+gLireDisque().then((c) => { gChats = c; }).catch(() => {});
+
+/* ---------- accès protégé ---------- */
+function montrerAcces(configure) {
+  acces.hidden = false;
+  accesTitre.textContent = configure ? "ACCÈS RESTREINT" : "PREMIÈRE OUVERTURE";
+  accesTexte.textContent = configure
+    ? "Entre ton mot de passe pour ouvrir JARVIS."
+    : "Choisis un mot de passe : il protégera ton fil, tes réponses enregistrées et les modifications du code. Note-le quelque part, il n'est pas récupérable.";
+  accesValider.textContent = configure ? "ENTRER" : "DÉFINIR LE MOT DE PASSE";
+  accesMdp.value = "";
+  accesErreur.textContent = "";
+  setTimeout(() => accesMdp.focus(), 100);
+}
+
+async function verifierAcces() {
+  let d = {};
+  try {
+    d = await fetch("/acces", { cache: "no-store" }).then((r) => r.json());
+  } catch (e) {
+    d = { configure: true, connecte: false };
+  }
+  if (d.connecte) { acces.hidden = true; demarrer(); return; }
+  montrerAcces(!!d.configure);
+}
+
+async function envoyerAcces() {
+  const motdepasse = accesMdp.value.trim();
+  if (!motdepasse) { accesErreur.textContent = "mot de passe vide"; return; }
+  accesValider.disabled = true;
+  accesErreur.textContent = "vérification…";
+  try {
+    const r = await fetch("/acces", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ motdepasse }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      accesErreur.textContent = d.erreur || ("refus " + r.status);
+      accesValider.disabled = false;
+      return;
+    }
+    acces.hidden = true;
+    demarrer();
+  } catch (e) {
+    accesErreur.textContent = "connexion impossible";
+    accesValider.disabled = false;
+  }
+}
+
+document.getElementById("acces-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  envoyerAcces();
+});
+
+let demarre = false;
+function demarrer() {
+  if (demarre) return;
+  demarre = true;
+  majModes();
+  repos();
+  historique();
+  if (mode === "revisions") chargerRevision(matiereRev);
+  majBadge();
+  setInterval(majBadge, 15000);
+  if (enQuestion()) veiller(900);
+}
+
+verifierAcces();
+</script>
+<script src="espace.js?v=39.1"></script>
+</body>
+</html>

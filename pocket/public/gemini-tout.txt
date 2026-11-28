@@ -1,0 +1,414 @@
+/* ============================================================
+   GEMINI -> JARVIS : récupère TOUTES les discussions du compte
+   À coller dans la console (F12) de gemini.google.com, puis Entrée.
+   - ne recharge pas la page et ne change pas d'onglet pendant le travail
+   - reprend automatiquement là où il s'est arrêté (sauvegarde locale)
+   - télécharge à la fin gemini-tout-AAAA-MM-JJ.json
+   ============================================================ */
+(async () => {
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms || (180 + Math.random() * 140)));
+  let prefixe = ((location.pathname.match(/^\/u\/(\d+)\//) || [])[0] || "").replace(/\/$/, "");
+
+  const sans = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const MATIERES = [
+    ["maths", /\b(maths?|mathematiques?|equation|thales|pythagore|derivee|fonction|vecteur|probabilite|geometrie)\b/],
+    ["histoire", /\b(histoire|guerre mondiale|napoleon|revolution|antiquite|1945|1914)\b/],
+    ["hggsp", /\b(hggsp|geopolitique|diplomatie|frontiere|puissance|migration)\b/],
+    ["ses", /\b(ses|economie|inflation|chomage|marche|socialisation|inegalite)\b/],
+    ["francais", /\b(francais|commentaire|dissertation|poeme|rimbaud|baudelaire|theatre|roman)\b/],
+    ["anglais", /\b(anglais|english|grammar|vocabulary)\b/],
+    ["espagnol", /\b(espagnol|espanol|spanish)\b/],
+    ["physique", /\b(physique|energie|force|vitesse|optique|electricite|atome|mouvement)\b/],
+    ["svt", /\b(svt|biologie|cellule|genetique|ecosysteme|adn|organisme|roche)\b/],
+  ];
+  function sujetDe(t) {
+    const x = sans(t);
+    for (const [nom, re] of MATIERES) if (re.test(x)) return nom;
+    return "";
+  }
+
+  /* ---------- jetons de session ---------- */
+  function jeton(k) {
+    try {
+      const v = window.WIZ_global_data && window.WIZ_global_data[k];
+      if (typeof v === "string" && v) return v;
+      if (Array.isArray(v) && typeof v[0] === "string") return v[0];
+    } catch (e) { /* on cherche dans le HTML */ }
+    const m = document.documentElement.innerHTML.match(new RegExp('"' + k + '"\\s*:\\s*"([^"]+)"'));
+    return m ? m[1] : "";
+  }
+  let AT = jeton("SNlM0e");
+  let BL = jeton("cfb2h");
+  let SID = jeton("FdrFJe");
+
+  async function rafraichirJeton() {
+    try {
+      const r = await fetch(prefixe + "/app", { credentials: "include" });
+      const h = await r.text();
+      const a = h.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+      const b = h.match(/"cfb2h"\s*:\s*"([^"]+)"/);
+      const s = h.match(/"FdrFJe"\s*:\s*"([^"]+)"/);
+      if (a) AT = a[1];
+      if (b) BL = b[1];
+      if (s) SID = s[1];
+    } catch (e) { /* on garde l'ancien jeton */ }
+    if (!AT) throw new Error("session Google introuvable — recharge la page Gemini et relance");
+  }
+
+  /* ---------- réponse batchexecute ---------- */
+  function trouver(x, id) {
+    if (!Array.isArray(x)) return null;
+    if (x[0] === "wrb.fr" && x[1] === id && typeof x[2] === "string") return x[2];
+    for (const y of x) {
+      const t = trouver(y, id);
+      if (t) return t;
+    }
+    return null;
+  }
+  function extraire(txt, id) {
+    const lignes = String(txt || "").split("\n");
+    for (const l of lignes) {
+      const t = l.trim();
+      if (!t || t.charAt(0) !== "[") continue;
+      try {
+        const p = trouver(JSON.parse(t), id);
+        if (p) {
+          try { return JSON.parse(p); } catch (e) { return p; }
+        }
+      } catch (e) { /* ligne suivante */ }
+    }
+    return null;
+  }
+
+  let nreq = 100000 + Math.floor(Math.random() * 800000);
+  async function rpc(id, charge, essai) {
+    essai = essai || 0;
+    if (!AT) await rafraichirJeton();
+    const url = prefixe + "/_/BardChatUi/data/batchexecute?rpcids=" + id
+      + "&source-path=" + encodeURIComponent(prefixe + "/app")
+      + "&hl=fr&_reqid=" + (nreq++) + "&rt=c"
+      + (BL ? "&bl=" + encodeURIComponent(BL) : "")
+      + (SID ? "&f.sid=" + encodeURIComponent(SID) : "");
+    const corps = new URLSearchParams();
+    corps.set("at", AT);
+    corps.set("f.req", JSON.stringify([[[id, JSON.stringify(charge), null, "generic"]]]));
+    let r;
+    try {
+      r = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+          "X-Same-Domain": "1",
+        },
+        body: corps.toString(),
+      });
+    } catch (e) {
+      if (essai < 2) { await pause(1200 * (essai + 1)); return rpc(id, charge, essai + 1); }
+      throw e;
+    }
+    if (!r.ok) {
+      if (r.status === 400 && essai < 1) { await rafraichirJeton(); return rpc(id, charge, essai + 1); }
+      if ((r.status === 429 || r.status >= 500) && essai < 3) {
+        await pause(2000 * (essai + 1));
+        return rpc(id, charge, essai + 1);
+      }
+      if (r.status === 401 || r.status === 403) throw new Error("session Google expirée — recharge la page");
+      throw new Error("HTTP " + r.status);
+    }
+    return extraire(await r.text(), id);
+  }
+
+  /* ---------- liste des discussions ---------- */
+  async function lister() {
+    const map = new Map();
+    for (const drapeau of [1, 0]) {
+      let curseur = null;
+      let pages = 0;
+      while (pages++ < 80) {
+        const d = await rpc("MaZiqc", [1000, curseur, [drapeau, null, 1]]);
+        const lignes = d && Array.isArray(d[2]) ? d[2] : (d && Array.isArray(d[0]) ? d[0] : []);
+        for (const row of lignes) {
+          if (!Array.isArray(row)) continue;
+          const brut = String(row[0] || "");
+          const id = /^c_[A-Za-z0-9_-]{6,}$/.test(brut) ? brut
+            : (/^[A-Za-z0-9_-]{12,}$/.test(brut) ? "c_" + brut : "");
+          if (!id) continue;
+          const quand = row[5] && typeof row[5][0] === "number" ? row[5][0] * 1000 : 0;
+          if (!map.has(id)) map.set(id, { id: id, titre: String(row[1] || "").trim(), quand: quand });
+        }
+        const suivant = d && (typeof d[1] === "string" || typeof d[1] === "number") && d[1] ? d[1] : null;
+        if (!suivant || suivant === curseur) break;
+        curseur = suivant;
+        await pause(120);
+      }
+    }
+    return [...map.values()];
+  }
+
+  function listeDom() {
+    const vus = new Map();
+    document.querySelectorAll('a[href*="/app/"]').forEach((a) => {
+      const m = (a.getAttribute("href") || "").match(/\/app\/([A-Za-z0-9_-]{6,})/);
+      if (!m) return;
+      const id = m[1].indexOf("c_") === 0 ? m[1] : "c_" + m[1];
+      if (vus.has(id)) return;
+      const titre = String(a.innerText || a.getAttribute("aria-label") || "").trim().split("\n")[0];
+      vus.set(id, { id: id, titre: titre, quand: 0 });
+    });
+    return [...vus.values()];
+  }
+
+  async function trouverListe() {
+    let metas = [];
+    try { metas = await lister(); } catch (e) { console.warn("liste (compte)", e); }
+    if (!metas.length && prefixe) {
+      prefixe = "";
+      try { metas = await lister(); } catch (e) { console.warn("liste (racine)", e); }
+    }
+    if (!metas.length) metas = listeDom();
+    const vus = new Set(metas.map((m) => m.id));
+    for (const m of listeDom()) {
+      if (!vus.has(m.id)) { metas.push(m); vus.add(m.id); }
+    }
+    return metas;
+  }
+
+  /* ---------- contenu d'une discussion ---------- */
+  function texteModele(turn) {
+    const cands = turn && turn[3] && turn[3][0];
+    if (!Array.isArray(cands)) return "";
+    let best = "";
+    for (const c of cands) {
+      const t = c && c[1] && typeof c[1][0] === "string" ? c[1][0] : "";
+      if (t.length > best.length) best = t;
+    }
+    return best;
+  }
+
+  function imagesDe(node) {
+    const out = [];
+    const vus = {};
+    (function walk(x, p) {
+      if (!x || p > 9) return;
+      if (typeof x === "string") {
+        if (/^https:\/\/lh3\.googleusercontent\.com\//.test(x) && !/\/a\//.test(x) && x.length > 50) {
+          const cle = x.split("=")[0];
+          if (!vus[cle]) { vus[cle] = 1; out.push(x); }
+        }
+        return;
+      }
+      if (Array.isArray(x)) { for (const y of x) walk(y, p + 1); return; }
+      if (typeof x === "object") { for (const k in x) walk(x[k], p + 1); }
+    })(node, 0);
+    return out.slice(0, 12);
+  }
+
+  function heureDe(turn, secours) {
+    const x = turn && turn[4];
+    let secondes = null;
+    if (Array.isArray(x)) {
+      if (typeof x[0] === "number") secondes = x[0];
+      else if (Array.isArray(x[0]) && typeof x[0][0] === "number") secondes = x[0][0];
+    }
+    if (secondes) {
+      const d = new Date(secondes * 1000);
+      if (isFinite(d.getTime()) && d.getFullYear() > 2020 && d.getTime() < Date.now() + 86400000) {
+        return d.toISOString();
+      }
+    }
+    return secours;
+  }
+
+  async function lireChat(meta) {
+    const d = await rpc("hNvQHb", [meta.id, 1000, null, 1, [1], [4], null, 1]);
+    const bruts = d && Array.isArray(d[0]) ? d[0] : [];
+    const secours = meta.quand ? new Date(meta.quand).toISOString() : new Date().toISOString();
+    const tours = [];
+    for (const t of bruts) {
+      if (!Array.isArray(t)) continue;
+      let q = t[2] && t[2][0] && typeof t[2][0][0] === "string" ? t[2][0][0] : "";
+      let r = texteModele(t);
+      const iq = imagesDe(t[2] || []).filter((u) => q.indexOf(u) < 0);
+      const ir = imagesDe((t[3] && t[3][0]) || []).filter((u) => r.indexOf(u) < 0);
+      if (iq.length) q += (q ? "\n\n" : "") + iq.map((u) => "![](" + u + ")").join("\n");
+      if (ir.length) r += (r ? "\n\n" : "") + ir.map((u) => "![](" + u + ")").join("\n");
+      if (!q.trim() && !r.trim()) continue;
+      tours.push({ q: q.trim(), r: r.trim(), iso: heureDe(t, secours) });
+    }
+    tours.reverse();
+    if (!tours.length) return null;
+    const premier = tours[0].q ? tours[0].q.replace(/!\[[^\]]*\]\([^)]+\)/g, "").trim() : "";
+    const titre = (meta.titre || premier || "discussion Gemini").slice(0, 90);
+    const debut = tours[0].iso || secours;
+    const sujet = sujetDe(titre + " " + tours.slice(0, 3).map((x) => x.q + " " + x.r.slice(0, 400)).join(" "));
+    return { id: meta.id, titre: titre, debut: debut, sujet: sujet, tours: tours };
+  }
+
+  /* ---------- sauvegarde locale (reprise) ---------- */
+  const faits = new Map();
+  const NOMDB = "jarvis_gemini_backup";
+  function db() {
+    return new Promise((ok, ko) => {
+      const r = indexedDB.open(NOMDB, 1);
+      r.onupgradeneeded = () => {
+        if (!r.result.objectStoreNames.contains("chats")) r.result.createObjectStore("chats", { keyPath: "id" });
+      };
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => ko(r.error);
+    });
+  }
+  async function dbLire() {
+    const d = await db();
+    return new Promise((ok, ko) => {
+      const q = d.transaction("chats", "readonly").objectStore("chats").getAll();
+      q.onsuccess = () => ok(q.result || []);
+      q.onerror = () => ko(q.error);
+    });
+  }
+  async function dbEcrire(c) {
+    const d = await db();
+    return new Promise((ok, ko) => {
+      const t = d.transaction("chats", "readwrite");
+      t.objectStore("chats").put(c);
+      t.oncomplete = () => ok(true);
+      t.onerror = () => ko(t.error);
+    });
+  }
+
+  /* ---------- panneau de progression ---------- */
+  const ancien = document.getElementById("jgt-boite");
+  if (ancien) ancien.remove();
+  const boite = document.createElement("div");
+  boite.id = "jgt-boite";
+  boite.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:2147483647;width:330px;max-width:calc(100vw - 32px);background:#0b0f14;color:#e8eef7;border:1px solid #2a3441;border-radius:12px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.45);font:13px/1.45 system-ui,Segoe UI,sans-serif";
+  const elTitre = document.createElement("b");
+  elTitre.style.fontSize = "14px";
+  elTitre.textContent = "Gemini → Jarvis";
+  const elEtat = document.createElement("div");
+  elEtat.id = "jgt-etat";
+  elEtat.style.marginTop = "6px";
+  elEtat.textContent = "préparation…";
+  const rail = document.createElement("div");
+  rail.style.cssText = "height:6px;background:#1b2430;border-radius:4px;margin:9px 0;overflow:hidden";
+  const elFill = document.createElement("i");
+  elFill.id = "jgt-fill";
+  elFill.style.cssText = "display:block;height:100%;width:0%;background:#4c9aff;transition:width .25s";
+  rail.appendChild(elFill);
+  const elDetail = document.createElement("div");
+  elDetail.id = "jgt-detail";
+  elDetail.style.cssText = "color:#9fb0c4;font-size:12px;min-height:32px";
+  const actions = document.createElement("div");
+  actions.style.cssText = "display:flex;gap:8px;margin-top:10px";
+  const btnStop = document.createElement("button");
+  btnStop.type = "button";
+  btnStop.textContent = "Arrêter";
+  btnStop.style.cssText = "flex:1;height:32px;border-radius:8px;border:1px solid #3a4656;background:#151c26;color:#e8eef7;cursor:pointer";
+  const btnDl = document.createElement("button");
+  btnDl.type = "button";
+  btnDl.textContent = "Télécharger";
+  btnDl.hidden = true;
+  btnDl.style.cssText = "flex:1;height:32px;border-radius:8px;border:1px solid #2f6fd0;background:#2563c9;color:#fff;cursor:pointer";
+  actions.appendChild(btnStop);
+  actions.appendChild(btnDl);
+  boite.appendChild(elTitre);
+  boite.appendChild(elEtat);
+  boite.appendChild(rail);
+  boite.appendChild(elDetail);
+  boite.appendChild(actions);
+  document.body.appendChild(boite);
+  const etat = (t) => { elEtat.textContent = t; };
+  const detail = (t) => { elDetail.textContent = t; };
+  const remplir = (p) => { elFill.style.width = Math.max(0, Math.min(100, p)) + "%"; };
+  let stop = false;
+  btnStop.onclick = () => { stop = true; etat("arrêt demandé…"); btnStop.disabled = true; };
+
+  function telecharger(chats) {
+    const propre = chats.slice().sort((a, b) => String(a.debut).localeCompare(String(b.debut)));
+    const paquet = {
+      source: "gemini",
+      exporte: new Date().toISOString(),
+      chats: propre,
+    };
+    const blob = new Blob([JSON.stringify(paquet)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "gemini-tout-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  }
+  btnDl.onclick = () => telecharger([...faits.values()]);
+
+  /* ---------- travail ---------- */
+  try {
+    try {
+      const deja = await dbLire();
+      deja.forEach((c) => { if (c && c.id) faits.set(c.id, c); });
+    } catch (e) { console.warn("sauvegarde locale", e); }
+
+    etat("lecture de la liste des discussions…");
+    const metas = await trouverListe();
+    if (!metas.length) {
+      etat("liste des discussions introuvable");
+      detail("Ouvre le menu ☰ en haut à gauche : la liste « Récents » doit apparaître. Puis relance le script.");
+      btnStop.disabled = true;
+      return;
+    }
+    metas.sort((a, b) => (b.quand || 0) - (a.quand || 0));
+    etat(metas.length + " discussions trouvées");
+    const aFaire = metas.filter((m) => !faits.has(m.id));
+    detail(aFaire.length ? (metas.length - aFaire.length) + " déjà faites · " + aFaire.length + " à récupérer"
+      : "tout est déjà récupéré, je prépare le fichier");
+
+    let erreurs = 0;
+    for (let i = 0; i < metas.length; i++) {
+      if (stop) break;
+      const m = metas[i];
+      if (faits.has(m.id)) continue;
+      detail("(" + (i + 1) + "/" + metas.length + ") " + (m.titre || m.id).slice(0, 48));
+      remplir((i + 1) / metas.length * 100);
+      document.title = "Jarvis " + faits.size + "/" + metas.length;
+      try {
+        const chat = await lireChat(m);
+        if (chat) {
+          faits.set(chat.id, chat);
+          try { await dbEcrire(chat); } catch (e) { console.warn("écriture", e); }
+        } else {
+          erreurs++;
+        }
+      } catch (e) {
+        erreurs++;
+        console.warn("discussion " + m.id, e);
+        if (/session Google expirée/.test(String(e && e.message))) {
+          detail("session expirée : recharge la page Gemini et relance le script.");
+          break;
+        }
+      }
+      await pause();
+    }
+
+    remplir(100);
+    const tous = [...faits.values()].filter((c) => c && c.tours && c.tours.some((t) => String(t.r || "").trim()));
+    const echanges = tous.reduce((n, c) => n + c.tours.length, 0);
+    const images = tous.reduce((n, c) => n + c.tours.reduce((k, t) => {
+      return k + ((String(t.q || "") + String(t.r || "")).match(/!\[\]\(https?:/g) || []).length;
+    }, 0), 0);
+    etat(tous.length + " discussions prêtes");
+    detail(echanges + " échanges · " + images + " images"
+      + (erreurs ? " · " + erreurs + " en échec" : "")
+      + (stop ? " · arrêté : clique Télécharger" : " · fichier téléchargé"));
+    btnDl.hidden = false;
+    btnStop.disabled = true;
+    document.title = "Gemini → Jarvis : " + tous.length + " discussions";
+    if (!stop && tous.length) {
+      await pause(300);
+      telecharger(tous);
+    }
+  } catch (e) {
+    console.error(e);
+    etat("échec : " + String((e && e.message) || e).slice(0, 120));
+    detail("Recharge la page Gemini, puis relance le script.");
+  }
+})();
