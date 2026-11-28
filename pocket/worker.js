@@ -2090,7 +2090,7 @@ export default {
           const maintenant = new Date().toISOString();
           if (id) {
             const statut = String(b.statut || "");
-            if (!["a_generer", "attente", "validee", "refusee", "appliquee"].includes(statut)) {
+            if (!["a_generer", "a_generer_web", "attente", "attente_web", "validee", "validee_web", "refusee", "appliquee"].includes(statut)) {
               return json({ erreur: "statut inconnu" }, 400);
             }
             const resume = b.resume ? String(b.resume).slice(0, 4000) : null;
