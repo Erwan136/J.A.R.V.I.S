@@ -8,6 +8,9 @@ const SITE = (process.env.JARVIS_SITE || "https://jarvis-de-poche-trhitj-preview
 const CLE = (process.env.JARVIS_CLE || "").trim();
 const GEM_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const MODELE = (process.env.GEMINI_MODEL || "gemini-3.5-flash-lite").trim();
+const GROQ_KEY = (process.env.GROQ_API_KEY || "").trim();
+const GROQ_MODELE = (process.env.GROQ_MODEL || "openai/gpt-oss-120b").trim();
+let fournisseur = GEM_KEY ? "gemini" : "groq";
 const GH_TOKEN = (process.env.GH_TOKEN || process.env.GITHUB_TOKEN || "").trim();
 const REPO_SLUG = (process.env.GITHUB_REPOSITORY || "").trim();
 const MAX_ETAPES = Math.min(Math.max(Number(process.env.AGENT_MAX_STEPS) || 18, 4), 60);
@@ -19,6 +22,7 @@ const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 // L'agent ne doit jamais voir les secrets dans son environnement.
 delete process.env.JARVIS_CLE;
 delete process.env.GEMINI_API_KEY;
+delete process.env.GROQ_API_KEY;
 delete process.env.GH_TOKEN;
 delete process.env.GITHUB_TOKEN;
 
@@ -254,7 +258,7 @@ async function appelGemini(contents) {
     tools: OUTILS,
     generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
   };
-  for (let essai = 0; essai < 4; essai++) {
+  for (let essai = 0; essai < 3; essai++) {
     const marge = dernierAppel + ESPACEMENT_MS - Date.now();
     if (marge > 0) await dormir(marge);
     dernierAppel = Date.now();
@@ -265,7 +269,7 @@ async function appelGemini(contents) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.status === 429) {
-      const pause = 25000 * (essai + 1);
+      const pause = 15000 * (essai + 1);
       console.log("Gemini 429 — pause de " + Math.round(pause / 1000) + "s avant nouvel essai");
       await dormir(pause);
       continue;
@@ -274,7 +278,113 @@ async function appelGemini(contents) {
     const cand = (d.candidates || [])[0] || {};
     return ((cand.content || {}).parts) || [];
   }
-  throw new Error("Gemini 429 : quota gratuit dépassé même après plusieurs pauses. Réessaie dans quelques minutes ; si ça revient, active la facturation sur Google AI Studio.");
+  throw new Error("Gemini 429 : quota gratuit dépassé même après plusieurs pauses.");
+}
+
+const OUTILS_OPENAI = OUTILS[0].functionDeclarations.map((f) => ({
+  type: "function",
+  function: {
+    name: f.name,
+    description: f.description,
+    parameters: {
+      type: "object",
+      properties: Object.fromEntries(
+        Object.entries(f.parameters.properties || {}).map(([k, v]) => [k, { type: String(v.type || "string").toLowerCase(), description: v.description || "" }]),
+      ),
+      required: f.parameters.required || [],
+    },
+  },
+}));
+
+// Traduit l'historique au format Gemini vers le format OpenAI (Groq).
+function versOpenAI(contents) {
+  const messages = [{ role: "system", content: CONSIGNE }];
+  const ids = new Map();
+  let n = 0;
+  for (const m of contents) {
+    const parts = m.parts || [];
+    if (m.role === "user") {
+      const reponses = parts.filter((p) => p.functionResponse);
+      if (reponses.length) {
+        for (const p of reponses) {
+          const nom = p.functionResponse.name;
+          const id = (ids.get(nom) || []).shift() || ("call_" + n++);
+          messages.push({ role: "tool", tool_call_id: id, content: String(p.functionResponse.response.resultat) });
+        }
+      } else {
+        messages.push({ role: "user", content: parts.filter((p) => typeof p.text === "string").map((p) => p.text).join("\n") });
+      }
+    } else if (m.role === "model") {
+      const texte = parts.filter((p) => typeof p.text === "string").map((p) => p.text).join("\n");
+      const appels = parts.filter((p) => p.functionCall);
+      if (appels.length) {
+        const tool_calls = appels.map((p) => {
+          const id = "call_" + n++;
+          const file = ids.get(p.functionCall.name) || [];
+          file.push(id);
+          ids.set(p.functionCall.name, file);
+          return { id, type: "function", function: { name: p.functionCall.name, arguments: JSON.stringify(p.functionCall.args || {}) } };
+        });
+        messages.push({ role: "assistant", content: texte || null, tool_calls });
+      } else {
+        messages.push({ role: "assistant", content: texte });
+      }
+    }
+  }
+  return messages;
+}
+
+async function appelGroq(contents) {
+  const url = "https://api.groq.com/openai/v1/chat/completions";
+  const corps = {
+    model: GROQ_MODELE,
+    messages: versOpenAI(contents),
+    tools: OUTILS_OPENAI,
+    tool_choice: "auto",
+    temperature: 0.2,
+    max_tokens: 4096,
+  };
+  for (let essai = 0; essai < 3; essai++) {
+    const marge = dernierAppel + 2000 - Date.now();
+    if (marge > 0) await dormir(marge);
+    dernierAppel = Date.now();
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + GROQ_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(corps),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 429) {
+      console.log("Groq 429 — pause avant nouvel essai");
+      await dormir(15000 * (essai + 1));
+      continue;
+    }
+    if (!r.ok) throw new Error("Groq " + r.status + " " + JSON.stringify(d).slice(0, 400));
+    const msg = ((d.choices || [])[0] || {}).message || {};
+    const parts = [];
+    if (msg.content) parts.push({ text: String(msg.content) });
+    for (const tc of msg.tool_calls || []) {
+      let args = {};
+      try { args = JSON.parse((tc.function && tc.function.arguments) || "{}"); } catch (e) { args = {}; }
+      parts.push({ functionCall: { name: tc.function.name, args } });
+    }
+    return parts;
+  }
+  throw new Error("Groq 429 : limite atteinte.");
+}
+
+async function appelModele(contents) {
+  if (fournisseur === "groq") return appelGroq(contents);
+  try {
+    return await appelGemini(contents);
+  } catch (e) {
+    if (GROQ_KEY && /429/.test(String(e.message || e))) {
+      console.log("Gemini 429 — bascule sur Groq pour la suite");
+      fournisseur = "groq";
+      return appelGroq(contents);
+    }
+    throw e;
+  }
 }
 
 async function boucleGemini(proposition) {
@@ -291,7 +401,7 @@ async function boucleGemini(proposition) {
   let termine = false;
   let resume = "";
   for (let etape = 0; etape < MAX_ETAPES; etape++) {
-    const parts = await appelGemini(contents);
+    const parts = await appelModele(contents);
     const appels = parts.filter((p) => p.functionCall && p.functionCall.name);
     const texte = parts.filter((p) => typeof p.text === "string").map((p) => p.text).join("").trim();
     if (!appels.length) {
@@ -411,9 +521,9 @@ async function principal() {
   }
   const premiere = aGenerer.sort((a, b) => Number(a.id) - Number(b.id))[0];
   console.log("Préparation de la proposition", premiere.id, ":", premiere.demande);
-  if (!GEM_KEY) {
-    await majProposition(premiere.id, "refusee", "Clé Gemini absente : ajoute GEMINI_API_KEY dans GitHub → Settings → Secrets and variables → Actions.");
-    throw new Error("GEMINI_API_KEY manquant dans les secrets GitHub");
+  if (!GEM_KEY && !GROQ_KEY) {
+    await majProposition(premiere.id, "refusee", "Aucune clé IA : ajoute GEMINI_API_KEY (ou GROQ_API_KEY) dans GitHub → Settings → Secrets and variables → Actions.");
+    throw new Error("GEMINI_API_KEY et GROQ_API_KEY manquants dans les secrets GitHub");
   }
   try {
     await generer(premiere);
@@ -428,7 +538,7 @@ async function principal() {
   }
 }
 
-export { executerOutil, cheminAutorise, boucleGemini };
+export { executerOutil, cheminAutorise, boucleGemini, versOpenAI };
 
 if (!process.env.AGENT_NO_MAIN) {
   principal().catch((e) => {
