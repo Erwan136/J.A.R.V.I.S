@@ -16,3 +16,4 @@ config.toml
 # Worker pocket/ : dependances installees et bundle de deploiement (npm run build)
 pocket/node_modules/
 pocket/dist/
+agent/node_modules/
