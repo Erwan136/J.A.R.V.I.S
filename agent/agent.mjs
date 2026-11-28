@@ -10,7 +10,11 @@ const GEM_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const MODELE = (process.env.GEMINI_MODEL || "gemini-3.5-flash-lite").trim();
 const GH_TOKEN = (process.env.GH_TOKEN || process.env.GITHUB_TOKEN || "").trim();
 const REPO_SLUG = (process.env.GITHUB_REPOSITORY || "").trim();
-const MAX_ETAPES = Math.min(Math.max(Number(process.env.AGENT_MAX_STEPS) || 24, 4), 60);
+const MAX_ETAPES = Math.min(Math.max(Number(process.env.AGENT_MAX_STEPS) || 18, 4), 60);
+const ESPACEMENT_MS = Math.max(Number(process.env.GEMINI_ESPACEMENT_MS) || 5000, 1000);
+const PAUSE_INITIALE_MS = Math.max(Number(process.env.GEMINI_PAUSE_INITIALE_MS) || 12000, 0);
+let dernierAppel = 0;
+const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // L'agent ne doit jamais voir les secrets dans son environnement.
 delete process.env.JARVIS_CLE;
@@ -250,18 +254,31 @@ async function appelGemini(contents) {
     tools: OUTILS,
     generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
   };
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(corps),
-  });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error("Gemini " + r.status + " " + JSON.stringify(d).slice(0, 400));
-  const cand = (d.candidates || [])[0] || {};
-  return ((cand.content || {}).parts) || [];
+  for (let essai = 0; essai < 4; essai++) {
+    const marge = dernierAppel + ESPACEMENT_MS - Date.now();
+    if (marge > 0) await dormir(marge);
+    dernierAppel = Date.now();
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corps),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 429) {
+      const pause = 25000 * (essai + 1);
+      console.log("Gemini 429 — pause de " + Math.round(pause / 1000) + "s avant nouvel essai");
+      await dormir(pause);
+      continue;
+    }
+    if (!r.ok) throw new Error("Gemini " + r.status + " " + JSON.stringify(d).slice(0, 400));
+    const cand = (d.candidates || [])[0] || {};
+    return ((cand.content || {}).parts) || [];
+  }
+  throw new Error("Gemini 429 : quota gratuit dépassé même après plusieurs pauses. Réessaie dans quelques minutes ; si ça revient, active la facturation sur Google AI Studio.");
 }
 
 async function boucleGemini(proposition) {
+  if (PAUSE_INITIALE_MS) await dormir(PAUSE_INITIALE_MS);
   const listing = listerDossier({ chemin: "." });
   let contents = [{
     role: "user",
