@@ -1377,7 +1377,7 @@ async function executerOutil(nom, args, env, attente) {
       await propositionsTable(env);
       const maintenant = new Date().toISOString();
       const info = await env.DB.prepare(
-        "INSERT INTO propositions (demande, resume, statut, cible, cree, maj) VALUES (?, '', 'a_generer', 'web', ?, ?)",
+        "INSERT INTO propositions (demande, resume, statut, cible, cree, maj) VALUES (?, '', 'a_generer_web', 'web', ?, ?)",
       ).bind(demande.slice(0, 500), maintenant, maintenant).run();
       return "proposition " + (info.meta && info.meta.last_row_id)
         + " enregistree : l'agent de code prepare la modification, puis Monsieur la valide dans le panneau.";

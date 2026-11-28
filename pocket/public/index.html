@@ -1126,8 +1126,9 @@ function afficherPropositionsChat() {
     actes.className = "actes";
     actes.appendChild(boutonActe("Oui", async (b) => {
       b.disabled = true;
-      if (!(await decider(p.id, "validee"))) { b.disabled = false; return; }
-      toast("validée — le PC applique");
+      const nouveau = p.statut === "attente_web" ? "validee_web" : "validee";
+      if (!(await decider(p.id, nouveau))) { b.disabled = false; return; }
+      toast(p.statut === "attente_web" ? "validée — l'agent GitHub fusionne" : "validée — le PC applique");
       await majBadge();
     }, "ok"));
     actes.appendChild(boutonActe("Non", async (b) => {
@@ -1824,10 +1825,10 @@ function quand(iso) {
 async function majBadge() {
   const liste = await propositionsLire();
   if (!liste) return [];
-  const n = liste.filter((p) => p.statut === "attente" || p.statut === "a_generer").length;
+  const n = liste.filter((p) => ["attente", "attente_web", "a_generer", "a_generer_web"].includes(p.statut)).length;
   nbProps.textContent = String(n);
   nbProps.hidden = n === 0;
-  const attente = liste.filter((p) => p.statut === "attente");
+  const attente = liste.filter((p) => p.statut === "attente" || p.statut === "attente_web");
   const signature = attente.map((p) => p.id + ":" + (p.maj || "") + ":" + (p.resume || "")).join("|");
   if (signature !== propositionsSignature) {
     propositionsSignature = signature;
@@ -1839,9 +1840,11 @@ async function majBadge() {
 }
 
 function etatLisible(statut, cible) {
-  if (statut === "a_generer") return cible === "web" ? "l'agent GitHub prépare la modification…" : "le PC prépare la modification…";
-  if (statut === "attente") return "en attente de ta décision";
+  if (statut === "a_generer") return "le PC prépare la modification…";
+  if (statut === "a_generer_web") return "l'agent GitHub prépare la modification…";
+  if (statut === "attente" || statut === "attente_web") return "en attente de ta décision";
   if (statut === "validee") return "validée — le PC va l'appliquer";
+  if (statut === "validee_web") return "validée — l'agent GitHub fusionne";
   if (statut === "appliquee") return "appliquée et compilée";
   if (statut === "refusee") return "refusée";
   return statut || "";
@@ -1862,13 +1865,14 @@ function blocProposition(p) {
     pre.textContent = p.resume;
     bloc.appendChild(pre);
   }
-  if (p.statut === "attente") {
+  if (p.statut === "attente" || p.statut === "attente_web") {
     const actes = document.createElement("div");
     actes.className = "actes";
+    const web = p.statut === "attente_web";
     actes.appendChild(boutonActe("Valider", async (b) => {
       b.disabled = true;
-      if (!(await decider(p.id, "validee"))) { b.disabled = false; return; }
-      toast("validée — le PC applique");
+      if (!(await decider(p.id, web ? "validee_web" : "validee"))) { b.disabled = false; return; }
+      toast(web ? "validée — l'agent GitHub fusionne" : "validée — le PC applique");
       dessinerPropositions(await majBadge());
     }, "ok"));
     actes.appendChild(boutonActe("Refuser", async (b) => {
@@ -1892,9 +1896,9 @@ function dessinerPropositions(liste) {
     listeProps.appendChild(v);
     return;
   }
-  const aValider = liste.filter((p) => p.statut === "attente");
-  const enPreparation = liste.filter((p) => p.statut === "a_generer");
-  const historique = liste.filter((p) => !["attente", "a_generer"].includes(p.statut));
+  const aValider = liste.filter((p) => p.statut === "attente" || p.statut === "attente_web");
+  const enPreparation = liste.filter((p) => p.statut === "a_generer" || p.statut === "a_generer_web");
+  const historique = liste.filter((p) => !["attente", "attente_web", "a_generer", "a_generer_web"].includes(p.statut));
   const groupe = (titre) => {
     const g = document.createElement("div");
     g.className = "prop-groupe";

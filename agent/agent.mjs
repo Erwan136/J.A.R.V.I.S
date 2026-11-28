@@ -144,14 +144,14 @@ async function generer(proposition) {
 
   git(["add", "pocket"]);
   git(["commit", "-m", "JARVIS : " + demande.slice(0, 100)]);
-  git(["push", "--force-with-lease", "origin", branche]);
+  git(["push", "--force", "origin", branche]);
 
   const resume = [
     "PR : " + ouvrirPr(branche, proposition, diff),
     "",
     diff,
   ].join("\n").slice(0, 4000);
-  await majProposition(proposition.id, "attente", resume);
+  await majProposition(proposition.id, "attente_web", resume);
   return true;
 }
 
@@ -183,13 +183,13 @@ async function principal() {
   if (!CODEBUFF_KEY) throw new Error("CODEBUFF_API_KEY manquant dans les secrets GitHub");
   const liste = await propositions();
 
-  for (const p of liste.filter((x) => x.cible === "web" && x.statut === "validee")) {
+  for (const p of liste.filter((x) => x.cible === "web" && x.statut === "validee_web")) {
     await appliquer(p);
   }
   for (const p of liste.filter((x) => x.cible === "web" && x.statut === "refusee")) {
     await refuser(p);
   }
-  const aGenerer = liste.filter((x) => x.cible === "web" && x.statut === "a_generer");
+  const aGenerer = liste.filter((x) => x.cible === "web" && x.statut === "a_generer_web");
   if (!aGenerer.length) {
     console.log("Aucune proposition web à préparer.");
     return;
@@ -202,6 +202,7 @@ async function principal() {
     console.error(e && e.stack || e);
     try {
       git(["reset", "--hard"]);
+      git(["clean", "-fd", "--", "pocket"]);
     } catch (e2) { /* rien */ }
     await majProposition(premiere.id, "refusee", "Erreur de l'agent : " + String(e.message || e).slice(0, 500));
     process.exitCode = 1;
