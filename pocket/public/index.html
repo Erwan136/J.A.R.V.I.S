@@ -1845,7 +1845,7 @@ function etatLisible(statut, cible) {
   if (statut === "attente" || statut === "attente_web") return "en attente de ta décision";
   if (statut === "validee") return "validée — le PC va l'appliquer";
   if (statut === "validee_web") return "validée — l'agent GitHub fusionne";
-  if (statut === "appliquee") return "appliquée et compilée";
+  if (statut === "appliquee") return cible === "web" ? "fusionnée — déploiement Freebuff à faire" : "appliquée et compilée";
   if (statut === "refusee") return "refusée";
   return statut || "";
 }
