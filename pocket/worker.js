@@ -55,14 +55,14 @@ const SYSTEM_R = [
   "A l'oral, evite le Markdown et les listes : des phrases simples, prononcables.",
 ].join(" ");
 
-const MATIERES_REV = ["maths", "histoire", "hggsp", "ses", "francais", "anglais", "espagnol", "physique", "svt"];
+const MATIERES_REV = ["maths", "histoire", "hggsp", "ses", "francais", "anglais", "espagnol", "physique", "svt", "perso"];
 
 function slugMatiere(s) {
   return String(s || "").toLowerCase().normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "");
 }
 
-const VERSION = "v39";
+const VERSION = "v43";
 
 const CHEMINS_PRIVES = [
   "/ask", "/last", "/stt", "/tts", "/sauvegardes", "/propositions",
@@ -898,6 +898,22 @@ async function filLire(env, limite, canal) {
   }
 }
 
+// Derniers echanges de revision, toutes matieres confondues : ils servent
+// aussi de memoire dans les modes Questions et Conversation.
+async function filLireRevisions(env, limite) {
+  if (!env.DB) return [];
+  try {
+    await filTable(env);
+    const l = Math.min(Math.max(Number(limite) || 6, 1), 40);
+    const r = await env.DB.prepare(
+      "SELECT canal, role, texte, cree FROM fil WHERE canal = 'revisions' OR canal LIKE 'revisions:%' ORDER BY id DESC LIMIT ?",
+    ).bind(l).all();
+    return (r.results || []).reverse();
+  } catch (e) {
+    return [];
+  }
+}
+
 async function filEcrire(env, canal, role, texte) {
   if (!env.DB) return 0;
   const t = String(texte == null ? "" : texte).trim();
@@ -1477,6 +1493,9 @@ async function discuter(texte, env, ctx, trace, canal, options, attente) {
     const c = m.canal || "telephone";
     return c !== ici && !estRev(c);
   }).slice(-12);
+  // Hors revisions, apercu des revisions recentes : ce qui a ete travaille
+  // dans l'onglet Revisions doit rester connu dans les autres modes.
+  const revRecents = estRev(ici) ? [] : await filLireRevisions(env, 6);
   const contents = memes.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.texte }],
@@ -1486,6 +1505,10 @@ async function discuter(texte, env, ctx, trace, canal, options, attente) {
   if (o.archive) morceaux.push(String(o.archive));
   const filAilleurs = filTexte(autres);
   if (filAilleurs) morceaux.push(filAilleurs);
+  if (revRecents.length) {
+    morceaux.push("Revisions recentes de Monsieur (memoire partagee, a utiliser meme hors de l'onglet Revisions) :\n"
+      + revRecents.map((m) => (m.role === "assistant" ? "Jarvis : " : "Monsieur : ") + String(m.texte || "").slice(0, 260)).join("\n").slice(0, 2200));
+  }
   let demande = texte;
   if (morceaux.length) demande = morceaux.join("\n\n") + "\n\nQuestion : " + texte;
   const partsDemande = [{ text: demande }];
@@ -1600,6 +1623,9 @@ async function discuterFlux(texte, env, ctx, canal, options, attente, onTexte) {
     const c = m.canal || "telephone";
     return c !== ici && !estRev(c);
   }).slice(-12);
+  // Hors revisions, apercu des revisions recentes : ce qui a ete travaille
+  // dans l'onglet Revisions doit rester connu dans les autres modes.
+  const revRecents = estRev(ici) ? [] : await filLireRevisions(env, 6);
   const contents = memes.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.texte }],
@@ -1609,6 +1635,10 @@ async function discuterFlux(texte, env, ctx, canal, options, attente, onTexte) {
   if (o.archive) morceaux.push(String(o.archive));
   const filAilleurs = filTexte(autres);
   if (filAilleurs) morceaux.push(filAilleurs);
+  if (revRecents.length) {
+    morceaux.push("Revisions recentes de Monsieur (memoire partagee, a utiliser meme hors de l'onglet Revisions) :\n"
+      + revRecents.map((m) => (m.role === "assistant" ? "Jarvis : " : "Monsieur : ") + String(m.texte || "").slice(0, 260)).join("\n").slice(0, 2200));
+  }
   let demande = texte;
   if (morceaux.length) demande = morceaux.join("\n\n") + "\n\nQuestion : " + texte;
   const partsDemande = [{ text: demande }];
@@ -1665,7 +1695,7 @@ async function discuterFlux(texte, env, ctx, canal, options, attente, onTexte) {
   return complet.trim() || "Je n'ai pas pu terminer cette action, Monsieur.";
 }
 
-async function transcrire(base64, mime, env, attente) {
+async function transcrireGemini(base64, mime, env, attente) {
   const modele = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
   const url = "https://generativelanguage.googleapis.com/v1beta/models/"
     + modele + ":generateContent?key=" + env.GEMINI_API_KEY;
@@ -1697,6 +1727,50 @@ async function transcrire(base64, mime, env, attente) {
   const texte = parts.map((p) => p.text || "").join(" ").trim();
   if (!texte || texte === "(vide)") return "";
   return texte;
+}
+
+async function transcrireGroq(base64, mime, env) {
+  const octets = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const extensions = {
+    "audio/mp4": "m4a", "audio/mpeg": "mp3", "audio/webm": "webm",
+    "audio/ogg": "ogg", "audio/wav": "wav", "audio/x-wav": "wav",
+  };
+  const forme = new FormData();
+  forme.append("file", new Blob([octets], { type: mime }), "audio." + (extensions[mime] || "m4a"));
+  forme.append("model", env.GROQ_STT_MODEL || "whisper-large-v3-turbo");
+  forme.append("language", "fr");
+  forme.append("response_format", "json");
+  forme.append("temperature", "0");
+  const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + env.GROQ_API_KEY },
+    body: forme,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error("Groq stt " + r.status + " " + JSON.stringify(data).slice(0, 160));
+  return String(data.text || "").trim();
+}
+
+// Gemini d'abord ; si la cle Gemini est absente ou saturee (429), on passe par Groq Whisper.
+async function transcrire(base64, mime, env, attente) {
+  let erreurGemini = null;
+  if (env.GEMINI_API_KEY) {
+    try {
+      return await transcrireGemini(base64, mime, env, attente);
+    } catch (e) {
+      erreurGemini = e;
+    }
+  }
+  if (env.GROQ_API_KEY) {
+    try {
+      return await transcrireGroq(base64, mime, env);
+    } catch (e) {
+      const avant = erreurGemini ? String((erreurGemini && erreurGemini.message) || erreurGemini) + " ; " : "";
+      throw new Error(avant + String((e && e.message) || e));
+    }
+  }
+  if (erreurGemini) throw erreurGemini;
+  throw new Error("aucune cle de transcription (GEMINI_API_KEY ou GROQ_API_KEY)");
 }
 
 async function demanderAFish(texte, env) {
@@ -1827,6 +1901,7 @@ export default {
         ok: true,
         version: VERSION,
         gemini: !!env.GEMINI_API_KEY,
+        groq: !!env.GROQ_API_KEY,
         fish: !!env.FISH_API_KEY,
         voix: !!env.FISH_VOICE_ID,
         memoire: !!env.DB,
@@ -2288,7 +2363,7 @@ export default {
           riche = String(o.mode || "") === "questions";
           revisions = String(o.mode || "") === "revisions";
           matiere = slugMatiere(o.matiere);
-          archive = String(o.archive || "").slice(0, 12000);
+          archive = String(o.archive || "").slice(0, 20000);
           if (o.image && o.image.data) {
             image = { mime: String(o.image.mime || "image/jpeg"), data: String(o.image.data) };
           }

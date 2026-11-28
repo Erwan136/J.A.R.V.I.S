@@ -28,17 +28,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: agent/package-lock.json
-
-      - name: Installer l'agent Codebuff
-        working-directory: agent
-        run: npm ci
 
       - name: Préparer ou appliquer une proposition
         working-directory: agent
         env:
-          CODEBUFF_API_KEY: ${{ secrets.CODEBUFF_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           JARVIS_CLE: ${{ secrets.JARVIS_CLE }}
           JARVIS_SITE: ${{ vars.JARVIS_SITE }}
           GITHUB_TOKEN: ${{ github.token }}

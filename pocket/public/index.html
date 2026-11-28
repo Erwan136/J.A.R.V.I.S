@@ -480,7 +480,7 @@
 </div>
 
 <header>
-  <div class="marque">J.A.R.V.I.S.<small>mark X &middot; v39 &middot; interface mobile</small></div>
+  <div class="marque">J.A.R.V.I.S.<small id="version-app">mark X &middot; v42 &middot; interface mobile</small></div>
   <div class="hud-droite">
     <button class="hud-bouton" id="veille-bouton" type="button" title="écoute de « hey jarvis » coupée">👂</button>
     <button class="hud-bouton" id="matiere-bouton" type="button" title="choisir la matière" hidden>Cours</button>
@@ -509,6 +509,9 @@
     <div class="gbarre" id="gbarre">
       <input id="grecherche" type="search" placeholder="chercher un chat…" />
       <button id="gimporter" type="button" title="importer un export Google">⇪</button>
+      <button id="gmenage" type="button" title="vider la corbeille">🧹</button>
+      <button id="greclasser" type="button" title="reclasser les discussions Perso dans leur matière d'après leur titre">🧭</button>
+      <button id="gdossiers-btn" type="button" title="ajouter ou supprimer des dossiers">📁</button>
       <button id="glienbtn" type="button" title="importer depuis un lien Drive partagé">🔗</button>      <button id="gcollerbtn" type="button" title="coller un chat copié depuis Gemini">＋</button>
     </div>
     <div class="gsujetbar">
@@ -520,6 +523,12 @@
       <div class="gcoller-actions">
         <button id="gannuler" type="button">Annuler</button>
         <button id="genregistrer" type="button">Enregistrer</button>
+      </div>
+    </div>
+    <div class="gcoller" id="gdossiers" hidden style="min-height:0">
+      <div id="gdossiers-liste" style="flex:1 1 auto;overflow-y:auto;min-height:0"></div>
+      <div class="gcoller-actions">
+        <button id="gdossiers-fermer" type="button">Fermer</button>
       </div>
     </div>
     <div class="gliste" id="gliste"></div>
@@ -659,8 +668,43 @@ const MATIERES = [
   ["espagnol", "Espagnol"],
   ["physique", "Physique"],
   ["svt", "SVT"],
+  ["perso", "Perso"],
   ["", "Cours (hors matière)"],
 ];
+// Dossiers ajoutés par Monsieur, gardés dans le navigateur.
+const MEMO_DOSSIERS = "jarvis_dossiers";
+let dossiersPerso = [];
+try {
+  const brut = JSON.parse(localStorage.getItem(MEMO_DOSSIERS) || "[]");
+  if (Array.isArray(brut)) dossiersPerso = brut.filter((d) => Array.isArray(d) && d[0] && d[1])
+    .map((d) => [d[0], d[1], d[2] === "cours" ? "cours" : "perso"]);
+} catch (e) { dossiersPerso = []; }
+// Dossiers par défaut masqués (supprimés par Monsieur).
+const MEMO_MASQUES = "jarvis_dossiers_masques";
+let dossiersMasques = [];
+try {
+  const brut = JSON.parse(localStorage.getItem(MEMO_MASQUES) || "[]");
+  if (Array.isArray(brut)) dossiersMasques = brut.filter((s) => typeof s === "string");
+} catch (e) { dossiersMasques = []; }
+function sauverMasques() { try { localStorage.setItem(MEMO_MASQUES, JSON.stringify(dossiersMasques)); } catch (e) {} }
+function estBase(slug) { return MATIERES.some((m) => m[0] === slug); }
+// Un dossier supprimé ne doit pas réapparaître : on renvoie ses discussions ailleurs.
+function repliSujet(slug) {
+  const s = slug || "";
+  if (dossiersMasques.indexOf(s) < 0) return s;
+  if (s !== "" && dossiersMasques.indexOf("") < 0) return "";
+  if (s !== "perso" && dossiersMasques.indexOf("perso") < 0) return "perso";
+  return s;
+}
+function dossiersTous() {
+  const visible = (m) => dossiersMasques.indexOf(m[0]) < 0;
+  const cours = MATIERES.filter((m) => m[0] !== "perso" && visible(m));
+  const perso = MATIERES.filter((m) => m[0] === "perso" && visible(m));
+  const plusCours = dossiersPerso.filter((d) => d[2] === "cours");
+  const plusPerso = dossiersPerso.filter((d) => d[2] !== "cours");
+  return cours.concat(plusCours, perso, plusPerso);
+}
+function sauverDossiers() { try { localStorage.setItem(MEMO_DOSSIERS, JSON.stringify(dossiersPerso)); } catch (e) {} }
 let matiereRev = localStorage.getItem("jarvis_matiere_rev") || "";
 if (!MATIERES.some((m) => m[0] === matiereRev)) matiereRev = "";
 
@@ -670,7 +714,7 @@ function filRevision(slug) {
 }
 
 function nomMatiere(slug) {
-  const t = MATIERES.filter((m) => m[0] === slug)[0];
+  const t = dossiersTous().filter((m) => m[0] === slug)[0];
   if (!t) return "Cours";
   return slug ? t[1] : "Cours";
 }
@@ -692,6 +736,11 @@ function tic() {
 }
 tic();
 setInterval(tic, 15000);
+// La version affichée vient du serveur : plus de libellé figé.
+fetch("health").then((r) => r.json()).then((d) => {
+  const el = document.getElementById("version-app");
+  if (el && d && d.version) el.innerHTML = "mark X \u00b7 " + String(d.version) + " \u00b7 interface mobile";
+}).catch(() => {});
 
 function heure(iso) {
   const d = iso ? new Date(iso) : new Date();
@@ -769,9 +818,9 @@ const choixMatiere = document.getElementById("choix-matiere");
 
 function majMatiere() {
   if (!matiereBouton) return;
-  matiereBouton.textContent = nomMatiere(matiereRev);
-  matiereBouton.title = "matière : " + nomMatiere(matiereRev);
-  matiereBouton.hidden = mode !== "revisions";
+  matiereBouton.textContent = mode === "revisions" ? nomMatiere(matiereRev) : "Dossiers";
+  matiereBouton.title = mode === "revisions" ? "matière : " + nomMatiere(matiereRev) : "dossiers et mes chats Gemini";
+  matiereBouton.hidden = false;
 }
 
 function fermerMatiere() {
@@ -781,14 +830,16 @@ function fermerMatiere() {
 function ouvrirMatiere() {
   if (!choixMatiere) return;
   choixMatiere.innerHTML = "";
-  MATIERES.forEach((paire) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = paire[0] === matiereRev ? "actif" : "";
-    b.textContent = paire[1];
-    b.addEventListener("click", () => choisirMatiere(paire[0]));
-    choixMatiere.appendChild(b);
-  });
+  if (mode === "revisions") {
+    MATIERES.forEach((paire) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = paire[0] === matiereRev ? "actif" : "";
+      b.textContent = paire[1];
+      b.addEventListener("click", () => choisirMatiere(paire[0]));
+      choixMatiere.appendChild(b);
+    });
+  }
   const sep = document.createElement("div");
   sep.className = "gsep";
   choixMatiere.appendChild(sep);
@@ -1494,10 +1545,8 @@ function voixContinue() {
 
 async function reponseFlux(texte, image, t0) {
   const corps = { text: texte, mode };
-  if (mode === "revisions") {
-    corps.matiere = matiereRev;
-    corps.archive = await gArchiveContexte(matiereRev);
-  }
+  if (mode === "revisions") corps.matiere = matiereRev;
+  corps.archive = await gArchiveContexte(texte, mode === "revisions" ? matiereRev : null);
   if (image) corps.image = { mime: image.mime, data: image.base64 };
   const r = await fetch("ask?fmt=flux&t=" + encodeURIComponent(jeton), {
     method: "POST",
@@ -1579,10 +1628,8 @@ async function parler(texte) {
       await reponseFlux(texte, image, t0);
     } else {
       const corps = { text: texte, mode };
-      if (mode === "revisions") {
-        corps.matiere = matiereRev;
-        corps.archive = await gArchiveContexte(matiereRev);
-      }
+      if (mode === "revisions") corps.matiere = matiereRev;
+      corps.archive = await gArchiveContexte(texte, mode === "revisions" ? matiereRev : null);
       if (image) corps.image = { mime: image.mime, data: image.base64 };
       const r = await fetch("ask?fmt=text&t=" + encodeURIComponent(jeton), {
         method: "POST",
@@ -2525,6 +2572,8 @@ const gRetour = document.getElementById("gretour");
 const gFermer = document.getElementById("gfermer");
 const gRecherche = document.getElementById("grecherche");
 const gImport = document.getElementById("gimporter");
+const gMenage = document.getElementById("gmenage");
+const gReclasser = document.getElementById("greclasser");
 const fichierGemini = document.getElementById("fichier-gemini");
 let gChats = null;
 
@@ -2640,6 +2689,7 @@ function gDate(iso) {
 }
 
 function gNomGroupe(slug) {
+  if (slug === "corbeille") return "Corbeille";
   return slug ? nomMatiere(slug) : "Cours (hors matière)";
 }
 
@@ -2668,59 +2718,148 @@ async function gChangerMatiere(id, slug) {
 async function gBasculerPrincipale(id) {
   const c = (gChats || []).filter((x) => x.id === id)[0];
   if (!c) return false;
-  const devient = !c.principale;
-  const lot = [];
-  (gChats || []).forEach((x) => {
-    if (x.id === id) {
-      x.principale = devient;
-      lot.push(x);
-    } else if (devient && (x.sujet || "") === (c.sujet || "") && x.principale) {
-      x.principale = false;
-      lot.push(x);
-    }
-  });
+  c.principale = !c.principale;
   try {
-    await gEcrire(lot);
+    await gEcrire([c]);
     gChats = await gLireDisque();
-    toast(devient ? "discussion principale : " + gNomGroupe(c.sujet || "") : "principale retirée");
-    return devient;
+    toast(c.principale ? "ajouté aux favoris (" + gNomGroupe(c.sujet || "") + ")" : "retiré des favoris");
+    return c.principale;
   } catch (e) {
     toast("enregistrement impossible");
     return false;
   }
 }
 
-async function gArchiveContexte(slug) {
+const MOTS_VIDES = ["dans", "avec", "pour", "quoi", "quel", "quelle", "quels", "quelles", "comment", "pourquoi", "est", "les", "des", "une", "que", "qui", "sur", "mon", "mes", "ton", "tes", "son", "ses", "nous", "vous", "ils", "elles", "etre", "avoir", "fait", "faire", "plus", "moins", "tout", "tous", "toute", "toutes", "mais", "donc", "alors", "quand", "comme", "aussi", "bien", "tres", "peux", "peut", "dire", "parle", "parler", "sais", "savoir", "cette", "cela", "ete", "suis", "es", "sont", "avoir", "dune", "dun"];
+function gPlat(s) {
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+function gMotsDe(question) {
+  const vus = {};
+  return gPlat(question).split(/[^a-z0-9]+/).filter((m) => {
+    if (m.length < 4 || MOTS_VIDES.indexOf(m) >= 0 || vus[m]) return false;
+    vus[m] = 1;
+    return true;
+  }).slice(0, 24);
+}
+
+async function gArchiveContexte(question, slug) {
   let tous = gChats;
   if (!tous) {
     try { tous = await gLireDisque(); gChats = tous; } catch (e) { tous = []; }
   }
   if (!tous || !tous.length) return "";
-  const chats = tous.filter((c) => (c.sujet || "") === (slug || ""));
-  const autres = tous.filter((c) => (c.sujet || "") !== (slug || "") && c.principale);
+  // Les discussions dans la corbeille ne servent plus au modele.
+  tous = tous.filter((c) => (c.sujet || "") !== "corbeille");
+  if (!tous.length) return "";
+  // slug === null : vue generale (Questions / Conversation), toutes matieres confondues.
+  const global = (slug === null);
+  const chats = global ? tous : tous.filter((c) => (c.sujet || "") === (slug || ""));
+  const autres = global ? [] : (() => {
+    const vus = {};
+    return tous.filter((c) => (c.sujet || "") !== (slug || "") && c.principale).filter((c) => {
+      const s = c.sujet || "";
+      if (vus[s]) return false;
+      vus[s] = 1;
+      return true;
+    }).slice(0, 8);
+  })();
   const lignes = [
-    "ARCHIVE GEMINI DE MONSIEUR — discussions importées de son compte Gemini. Ce sont ses vrais échanges de travail : traite-les comme ses souvenirs et ne dis jamais que tu n'es pas connecté à Gemini.",
-    "Matière en cours : " + gNomGroupe(slug) + ".",
+    "ARCHIVE GEMINI DE MONSIEUR — discussions importées de ses comptes Gemini. Ce sont ses vrais échanges de travail : traite-les comme ses souvenirs et ne dis jamais que tu n'es pas connecté à Gemini.",
   ];
-  if (!chats.length) {
-    lignes.push("Aucune discussion Gemini importée pour cette matière.");
+  if (global) {
+    lignes.push("Vue générale : ces discussions sont accessibles depuis les trois modes (questions, conversation, révisions) ; sers-t'en quelle que soit la question.");
   } else {
-    const parDate = chats.slice().sort((a, b) => String(b.debut || "").localeCompare(String(a.debut || "")));
-    const principale = chats.filter((c) => c.principale)[0] || parDate[0];
+    lignes.push("Matière en cours : " + gNomGroupe(slug) + ".");
+  }
+  const bloc = (c, n) => (c.tours || []).slice(-n).map((t) => "Monsieur : " + String(t.q || "").slice(0, 400) + "\nGemini : " + String(t.r || "").slice(0, 900)).join("\n");
+  const court = (c) => (c.tours || []).slice(-1).map((t) => "Monsieur : " + String(t.q || "").slice(0, 180) + "\nGemini : " + String(t.r || "").slice(0, 450)).join("\n");
+  const parDate = chats.slice().sort((a, b) => String(b.debut || "").localeCompare(String(a.debut || "")));
+  // 1) Passages de l'archive qui correspondent aux mots de la question.
+  const mots = gMotsDe(question);
+  if (mots.length) {
+    const trouves = [];
+    for (const c of chats) {
+      const titre = gPlat(c.titre);
+      let total = 0;
+      const tours = [];
+      for (const t of (c.tours || [])) {
+        const q = gPlat(t.q);
+        const r = gPlat(t.r);
+        let note = 0;
+        for (const m of mots) {
+          if (titre.indexOf(m) >= 0) total += 3;
+          if (q.indexOf(m) >= 0) note += 2;
+          if (r.indexOf(m) >= 0) note += 1;
+        }
+        if (note) tours.push([note, t]);
+      }
+      if (total || tours.length) {
+        tours.sort((a, b) => b[0] - a[0]);
+        // Les discussions favorites remontent avant les autres à pertinence voisine.
+        const bonus = c.principale ? 15 : 0;
+        trouves.push({ c: c, note: total + bonus + tours.reduce((n, x) => n + x[0], 0), tours: tours.slice(0, 3).map((x) => x[1]) });
+      }
+    }
+    trouves.sort((a, b) => (b.note - a.note) || String(b.c.debut || "").localeCompare(String(a.c.debut || "")));
+    const meilleurs = trouves.slice(0, 6).filter((x) => x.tours.length);
+    if (meilleurs.length) {
+      lignes.push("Passages de l'archive les plus pertinents pour la question :");
+      for (const x of meilleurs) {
+        lignes.push("« " + x.c.titre + " » — " + gDate(x.c.debut) + " · " + gNomGroupe(x.c.sujet || "") + " :");
+        for (const t of x.tours) {
+          lignes.push("Monsieur : " + String(t.q || "").slice(0, 500) + "\nGemini : " + String(t.r || "").slice(0, 900));
+        }
+      }
+    }
+  }
+  // 2) Vue d'ensemble (récente + par matière).
+  if (!chats.length) {
+    lignes.push(global ? "Aucune discussion Gemini importée pour le moment." : "Aucune discussion Gemini importée pour cette matière.");
+  } else if (!global) {
     const recente = parDate[0];
-    const bloc = (c, n) => (c.tours || []).slice(-n).map((t) => "Monsieur : " + String(t.q || "").slice(0, 400) + "\nGemini : " + String(t.r || "").slice(0, 900)).join("\n");
-    lignes.push("Discussion principale" + (principale.principale ? "" : " (la plus récente, aucune n'est marquée)") + " : « " + principale.titre + " » — " + gDate(principale.debut) + ".");
-    lignes.push(bloc(principale, 3));
-    if (recente.id !== principale.id) {
-      lignes.push("Discussion la plus récente : « " + recente.titre + " » — " + gDate(recente.debut) + ".");
-      lignes.push(bloc(recente, 2));
+    const favs = chats.filter((c) => c.principale)
+      .sort((a, b) => String(b.debut || "").localeCompare(String(a.debut || "")))
+      .slice(0, 3);
+    if (!favs.length) {
+      lignes.push("Discussion la plus récente (aucune favorite dans cette matière) : « " + recente.titre + " » — " + gDate(recente.debut) + ".");
+      lignes.push(bloc(recente, 3));
+    } else {
+      favs.forEach((c, i) => {
+        lignes.push("Discussion favorite" + (favs.length > 1 ? " " + (i + 1) : "") + " : « " + c.titre + " » — " + gDate(c.debut) + ".");
+        lignes.push(bloc(c, i === 0 ? 3 : 2));
+      });
+      if (!favs.some((c) => c.id === recente.id)) {
+        lignes.push("Discussion la plus récente : « " + recente.titre + " » — " + gDate(recente.debut) + ".");
+        lignes.push(bloc(recente, 2));
+      }
     }
     lignes.push("Dernières discussions de cette matière : " + parDate.slice(0, 8).map((c) => "« " + c.titre + " » (" + gDate(c.debut) + ")").join(" ; ") + ".");
+  } else {
+    const recente = parDate[0];
+    lignes.push("Discussion la plus récente : « " + recente.titre + " » — " + gDate(recente.debut) + " · " + gNomGroupe(recente.sujet || "") + ".");
+    lignes.push(bloc(recente, 2));
+    const groupes = new Map();
+    for (const c of parDate) {
+      const s = c.sujet || "";
+      // Une favorite de la matière passe devant la simple discussion récente.
+      if (!groupes.has(s) || (!groupes.get(s).principale && c.principale)) groupes.set(s, c);
+    }
+    for (const [groupe, c] of groupes) {
+      if (c.id === recente.id) continue;
+      lignes.push("— " + gNomGroupe(groupe) + " : « " + c.titre + " » — " + gDate(c.debut) + ".");
+      lignes.push(court(c));
+    }
+    const principales = chats.filter((c) => c.principale);
+    if (principales.length) {
+      lignes.push("Discussions principales : " + principales.slice(0, 12).map((c) => gNomGroupe(c.sujet || "") + " — « " + c.titre + " »").join(" ; ") + ".");
+    }
+    lignes.push("Dernières discussions importées : " + parDate.slice(0, 12).map((c) => "« " + c.titre + " » (" + gNomGroupe(c.sujet || "") + ", " + gDate(c.debut) + ")").join(" ; ") + ".");
   }
   if (autres.length) {
     lignes.push("Discussions principales des autres matières : " + autres.map((c) => gNomGroupe(c.sujet || "") + " — « " + c.titre + " »").join(" ; ") + ".");
   }
-  return lignes.join("\n").slice(0, 9000);
+  return lignes.join("\n").slice(0, 18000);
 }
 
 function gLigne(c) {
@@ -2738,7 +2877,8 @@ function gLigne(c) {
   sel.className = "gselmat";
   sel.title = "ranger dans une matière";
   sel.appendChild(new Option("Cours (hors matière)", ""));
-  MATIERES.forEach((p) => { if (p[0]) sel.appendChild(new Option(p[1], p[0])); });
+  dossiersTous().forEach((p) => { if (p[0]) sel.appendChild(new Option(p[1], p[0])); });
+  sel.appendChild(new Option("Corbeille", "corbeille"));
   sel.value = c.sujet || "";
   sel.addEventListener("click", (e) => e.stopPropagation());
   sel.addEventListener("change", async () => {
@@ -2754,20 +2894,31 @@ function gLigne(c) {
   star.type = "button";
   star.className = "gstar" + (c.principale ? " on" : "");
   star.textContent = c.principale ? "★" : "☆";
-  star.title = c.principale ? "retirer comme discussion principale" : "définir comme principale de " + gNomGroupe(c.sujet || "");
+  star.title = c.principale ? "retirer des favoris" : "ajouter aux favoris";
   star.addEventListener("click", async (e) => {
     e.stopPropagation();
     await gBasculerPrincipale(c.id);
+    gRendre();
+  });
+  const corb = document.createElement("button");
+  corb.type = "button";
+  corb.className = "gdel";
+  corb.textContent = "🗑";
+  corb.title = "mettre dans la corbeille";
+  corb.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    await gChangerMatiere(c.id, "corbeille");
     gRendre();
   });
   const del = document.createElement("button");
   del.type = "button";
   del.className = "gdel";
   del.textContent = "✕";
-  del.title = "supprimer ce chat";
+  del.title = "supprimer définitivement ce chat";
   del.addEventListener("click", (e) => { e.stopPropagation(); gSupprimer(c.id); });
   ligne.appendChild(txt);
   ligne.appendChild(star);
+  ligne.appendChild(corb);
   ligne.appendChild(del);
   return ligne;
 }
@@ -2794,14 +2945,24 @@ function gRendre() {
     if (!groupes.has(s)) groupes.set(s, []);
     groupes.get(s).push(c);
   });
-  const ordre = MATIERES.map((m) => m[0]);
+  const ordre = dossiersTous().map((m) => m[0]);
+  ordre.push("corbeille");
   const cles = Array.from(groupes.keys()).sort((a, b) => {
     const ia = ordre.indexOf(a);
     const ib = ordre.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
   });
   const frag = document.createDocumentFragment();
+  let dernierCat = "";
   cles.forEach((slug) => {
+    const cat = gCatDe(slug);
+    if (cat !== "corbeille" && cat !== dernierCat) {
+      const sec = document.createElement("div");
+      sec.style.cssText = "padding:16px 8px 2px;font:600 10px/1 system-ui;letter-spacing:.22em;color:#8a8f98";
+      sec.textContent = cat === "perso" ? "PERSO" : "COURS";
+      frag.appendChild(sec);
+      dernierCat = cat;
+    }
     const chats = groupes.get(slug).slice().sort((a, b) => {
       if (!!b.principale !== !!a.principale) return b.principale ? 1 : -1;
       return String(b.debut || "").localeCompare(String(a.debut || ""));
@@ -2837,7 +2998,8 @@ function gLire(id) {
   lab.textContent = "matière";
   const sel = document.createElement("select");
   sel.appendChild(new Option("Cours (hors matière)", ""));
-  MATIERES.forEach((p) => { if (p[0]) sel.appendChild(new Option(p[1], p[0])); });
+  dossiersTous().forEach((p) => { if (p[0]) sel.appendChild(new Option(p[1], p[0])); });
+  sel.appendChild(new Option("Corbeille", "corbeille"));
   sel.value = c.sujet || "";
   sel.addEventListener("change", async () => {
     const pos = gCorps.scrollTop;
@@ -2848,17 +3010,27 @@ function gLire(id) {
   const st = document.createElement("button");
   st.type = "button";
   st.className = "gstar" + (c.principale ? " on" : "");
-  st.textContent = c.principale ? "★ Principale" : "☆ Principale";
-  st.title = c.principale ? "retirer comme discussion principale" : "définir comme principale de " + gNomGroupe(c.sujet || "");
+  st.textContent = c.principale ? "★ Favori" : "☆ Favori";
+  st.title = c.principale ? "retirer des favoris" : "ajouter aux favoris";
   st.addEventListener("click", async () => {
     const v = await gBasculerPrincipale(c.id);
     st.classList.toggle("on", !!v);
-    st.textContent = v ? "★ Principale" : "☆ Principale";
-    st.title = v ? "retirer comme discussion principale" : "définir comme principale de " + gNomGroupe(sel.value);
+    st.textContent = v ? "★ Favori" : "☆ Favori";
+    st.title = v ? "retirer des favoris" : "ajouter aux favoris";
+  });
+  const corb = document.createElement("button");
+  corb.type = "button";
+  corb.className = "gstar";
+  corb.textContent = "🗑 Corbeille";
+  corb.title = "mettre dans la corbeille";
+  corb.addEventListener("click", async () => {
+    await gChangerMatiere(c.id, "corbeille");
+    gRetourListe();
   });
   bar.appendChild(lab);
   bar.appendChild(sel);
   bar.appendChild(st);
+  bar.appendChild(corb);
   gCorps.appendChild(bar);
   const d = document.createElement("div");
   d.className = "gdate";
@@ -2883,6 +3055,18 @@ function gLire(id) {
 async function gOuvrir() {
   if (!gVoile) return;
   try { gChats = await gLireDisque(); } catch (e) { gChats = gChats || []; toast("stockage local indisponible"); }
+  // Les discussions des dossiers supprimés repartent dans un dossier existant.
+  if (dossiersMasques.length) {
+    const lot = [];
+    (gChats || []).forEach((c) => {
+      const s = c.sujet || "";
+      const r = repliSujet(s);
+      if (r !== s) { c.sujet = r; lot.push(c); }
+    });
+    if (lot.length) {
+      try { await gEcrire(lot); gChats = await gLireDisque(); } catch (e) { /* on garde l'affichage */ }
+    }
+  }
   gVoile.hidden = false;
   gTitre.textContent = "MES CHATS GEMINI";
   gBarre.hidden = false;
@@ -2890,6 +3074,7 @@ async function gOuvrir() {
   gCorps.hidden = true;
   gRetour.hidden = true;
   if (gColler) gColler.hidden = true;
+  if (gDossiersZone) gDossiersZone.hidden = true;
   if (gRecherche) gRecherche.value = "";
   gRendre();
 }
@@ -3110,6 +3295,8 @@ if (fichierGemini) {
       return;
     }
     gChats = await gLireDisque();
+    // Le dossier « importer dans » ne doit pas rester collé d'un import à l'autre.
+    if (gSujetSel) gSujetSel.value = "";
     toast(chats + " chat(s) · " + tours + " échange(s) importé(s)" + (rates.length ? " · " + rates.length + " refusé(s)" : ""));
     if (gVoile && !gVoile.hidden) {
       if (gColler) gColler.hidden = true;
@@ -3178,7 +3365,7 @@ function gValide(chat) {
 function gAppliquerSujet(chat) {
   const sel = document.getElementById("gsujet");
   const force = sel ? sel.value : "";
-  if (force) chat.sujet = force;
+  chat.sujet = repliSujet(force || chat.sujet || "");
   return chat;
 }
 
@@ -3212,6 +3399,220 @@ function gRetourListe() {
   gRetour.hidden = true;
   gRendre();
 }
+
+async function gViderCorbeille() {
+  const tous = gChats || [];
+  const aSupprimer = tous.filter((c) => (c.sujet || "") === "corbeille");
+  if (!aSupprimer.length) { toast("la corbeille est vide"); return; }
+  if (!window.confirm("vider la corbeille : supprimer " + aSupprimer.length + " discussion(s) ?\n\nUn nouvel import du même export les remettrait.")) return;
+  let n = 0;
+  for (const c of aSupprimer) {
+    try { await gEffacer(c.id); n++; } catch (e) { /* on continue */ }
+  }
+  gChats = await gLireDisque();
+  if (gCourant && !gChats.some((c) => c.id === gCourant)) gRetourListe();
+  else gRendre();
+  toast("corbeille vidée · " + n + " supprimée(s)");
+}
+
+if (gMenage) gMenage.addEventListener("click", gViderCorbeille);
+
+async function gReclasserPerso() {
+  const tous = gChats || [];
+  const lot = [];
+  const comptes = {};
+  for (const c of tous) {
+    if ((c.sujet || "") !== "perso") continue;
+    const texte = (c.titre || "") + " " + (c.tours || []).slice(0, 2).map((t) => (t.q || "") + " " + String(t.r || "").slice(0, 400)).join(" ");
+    const s = gSujet(texte);
+    if (s && s !== "perso") {
+      c.sujet = s;
+      lot.push(c);
+      comptes[s] = (comptes[s] || 0) + 1;
+    }
+  }
+  if (!lot.length) { toast("rien à reclasser : aucun cours reconnu dans Perso"); return; }
+  const detail = Object.keys(comptes).map((s) => nomMatiere(s) + " : " + comptes[s]).join(" · ");
+  if (!window.confirm("ranger " + lot.length + " discussion(s) de Perso dans leur matière ?\n\n" + detail)) return;
+  try {
+    await gEcrire(lot);
+    gChats = await gLireDisque();
+    gRendre();
+    toast(lot.length + " reclassée(s) · " + detail);
+  } catch (e) {
+    toast("reclassement impossible");
+  }
+}
+
+if (gReclasser) gReclasser.addEventListener("click", gReclasserPerso);
+
+/* ---------- dossiers personnalisés ---------- */
+const gDossiersBtn = document.getElementById("gdossiers-btn");
+const gDossiersZone = document.getElementById("gdossiers");
+const gDossiersListe = document.getElementById("gdossiers-liste");
+const COURS_BASE = MATIERES.filter((m) => m[0] !== "perso");
+const PERSO_BASE = MATIERES.filter((m) => m[0] === "perso");
+
+function gCatDe(slug) {
+  if (slug === "perso") return "perso";
+  const d = dossiersPerso.filter((x) => x[0] === slug)[0];
+  if (!d) return slug === "corbeille" ? "corbeille" : "cours";
+  return d[2] === "cours" ? "cours" : "perso";
+}
+
+async function gSupprimerDossier(slug, nom, cat) {
+  const dedans = (gChats || []).filter((c) => (c.sujet || "") === slug);
+  const restants = dossiersTous().map((d) => d[0]).filter((s) => s !== slug);
+  let cible = "";
+  if (cat === "perso") {
+    cible = restants.indexOf("perso") >= 0 ? "perso" : (restants.indexOf("") >= 0 ? "" : (restants[0] || ""));
+  } else {
+    cible = restants.indexOf("") >= 0 ? "" : (restants.indexOf("perso") >= 0 ? "perso" : (restants[0] || ""));
+  }
+  if (!window.confirm("supprimer le dossier « " + nom + " » ?" + (dedans.length
+    ? "\n\n" + dedans.length + " discussion(s) iront dans " + gNomGroupe(cible) + "."
+    : "\n\nIl est vide."))) return;
+  const lot = [];
+  dedans.forEach((c) => { c.sujet = cible; lot.push(c); });
+  if (lot.length) { try { await gEcrire(lot); } catch (e) {} }
+  if (estBase(slug)) {
+    if (dossiersMasques.indexOf(slug) < 0) dossiersMasques.push(slug);
+    sauverMasques();
+  } else {
+    dossiersPerso = dossiersPerso.filter((d) => d[0] !== slug);
+    sauverDossiers();
+  }
+  gChats = await gLireDisque();
+  gRemplirDossiersSelect();
+  gMajDossiers();
+  toast("dossier supprimé");
+}
+
+function gMajDossiers() {
+  if (!gDossiersListe) return;
+  gDossiersListe.innerHTML = "";
+  const entete = (texte, aide) => {
+    const t = document.createElement("div");
+    t.style.cssText = "margin:16px 8px 3px;font:600 11px/1.4 system-ui;letter-spacing:.18em;color:#14181d";
+    t.textContent = texte;
+    const a = document.createElement("div");
+    a.style.cssText = "margin:0 8px 6px;font:12px system-ui;color:#8a8f98";
+    a.textContent = aide;
+    gDossiersListe.appendChild(t);
+    gDossiersListe.appendChild(a);
+  };
+  const ligne = (nom, slug) => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:8px;padding:9px 8px;border-bottom:1px solid rgba(20,24,29,.08)";
+    const b = document.createElement("b");
+    b.style.cssText = "flex:1 1 auto;font:14px system-ui;color:#14181d";
+    b.textContent = nom;
+    row.appendChild(b);
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "gdel";
+    del.textContent = "✕";
+    del.title = "supprimer ce dossier";
+    del.style.width = "32px";
+    del.style.height = "32px";
+    del.addEventListener("click", () => gSupprimerDossier(slug, nom, gCatDe(slug)));
+    row.appendChild(del);
+    gDossiersListe.appendChild(row);
+  };
+  const ajout = (cat) => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;padding:10px 8px";
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.placeholder = cat === "cours" ? "nouveau dossier de cours…" : "nouveau dossier perso…";
+    inp.style.cssText = "flex:1 1 auto;min-width:0;height:38px;border-radius:8px;border:1px solid rgba(20,24,29,.16);padding:0 10px;font:13px system-ui";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "Ajouter";
+    btn.style.cssText = "flex:0 0 auto;height:38px;padding:0 14px;border-radius:8px;border:1px solid #14181d;background:#14181d;color:#fff;font:600 13px system-ui";
+    const faire = () => gAjouterDossier(cat, inp);
+    btn.addEventListener("click", faire);
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); faire(); } });
+    row.appendChild(inp);
+    row.appendChild(btn);
+    gDossiersListe.appendChild(row);
+  };
+  const visible = (slug) => dossiersMasques.indexOf(slug) < 0;
+  entete("COURS", "les matières et tes dossiers de cours — tout est supprimable");
+  ajout("cours");
+  COURS_BASE.filter(([slug]) => visible(slug)).forEach(([slug, nom]) => ligne(nom, slug));
+  dossiersPerso.filter((d) => d[2] === "cours").forEach(([slug, nom]) => ligne(nom, slug));
+  entete("PERSO", "tes dossiers personnels — tout est supprimable");
+  ajout("perso");
+  PERSO_BASE.filter(([slug]) => visible(slug)).forEach(([slug, nom]) => ligne(nom, slug));
+  dossiersPerso.filter((d) => d[2] !== "cours").forEach(([slug, nom]) => ligne(nom, slug));
+  if (dossiersMasques.length) {
+    const rest = document.createElement("button");
+    rest.type = "button";
+    rest.textContent = "Rétablir les dossiers par défaut";
+    rest.style.cssText = "margin:14px 8px;height:38px;padding:0 14px;border-radius:8px;border:1px solid rgba(20,24,29,.2);background:#fff;color:#14181d;font:600 13px system-ui";
+    rest.addEventListener("click", () => {
+      dossiersMasques = [];
+      sauverMasques();
+      gRemplirDossiersSelect();
+      gMajDossiers();
+      toast("dossiers par défaut rétablis");
+    });
+    gDossiersListe.appendChild(rest);
+  }
+}
+
+async function gAjouterDossier(cat, inp) {
+  const nom = String((inp && inp.value) || "").trim().slice(0, 24);
+  if (!nom) { toast("donne un nom au dossier"); return; }
+  const slug = sansAccents(nom).replace(/[^a-z0-9]+/g, "").slice(0, 20);
+  if (!slug) { toast("nom invalide"); return; }
+  if (slug === "corbeille" || dossiersTous().some((d) => d[0] === slug)) { toast("ce dossier existe déjà"); return; }
+  dossiersPerso.push([slug, nom, cat === "cours" ? "cours" : "perso"]);
+  sauverDossiers();
+  inp.value = "";
+  gRemplirDossiersSelect();
+  gMajDossiers();
+  toast("dossier ajouté : " + nom);
+}
+
+function gRemplirDossiersSelect() {
+  const sel = document.getElementById("gsujet");
+  if (!sel) return;
+  const val = sel.value;
+  sel.innerHTML = "";
+  const a = document.createElement("option");
+  a.value = "";
+  a.textContent = "Auto (deviner)";
+  sel.appendChild(a);
+  dossiersTous().forEach((p) => {
+    const o = document.createElement("option");
+    o.value = p[0];
+    o.textContent = p[1];
+    sel.appendChild(o);
+  });
+  sel.value = (val === "" || dossiersTous().some((d) => d[0] === val)) ? val : "";
+}
+
+function gFermerDossiers() {
+  if (!gDossiersZone) return;
+  gDossiersZone.hidden = true;
+  if (gBarre) gBarre.hidden = false;
+  if (gListe) gListe.hidden = false;
+  gRendre();
+}
+
+if (gDossiersBtn) gDossiersBtn.addEventListener("click", () => {
+  if (!gDossiersZone) return;
+  if (!gDossiersZone.hidden) { gFermerDossiers(); return; }
+  gDossiersZone.hidden = false;
+  if (gBarre) gBarre.hidden = true;
+  if (gListe) gListe.hidden = true;
+  if (gCorps) gCorps.hidden = true;
+  gMajDossiers();
+});
+const gDossiersFermer = document.getElementById("gdossiers-fermer");
+if (gDossiersFermer) gDossiersFermer.addEventListener("click", gFermerDossiers);
 
 async function gSupprimer(id) {
   if (!window.confirm("supprimer ce chat de Jarvis ?")) return;
@@ -3265,18 +3666,7 @@ const gSuppr = document.getElementById("gsuppr");
 if (gSuppr) gSuppr.addEventListener("click", () => { if (gCourant) gSupprimer(gCourant); });
 
 const gSujetSel = document.getElementById("gsujet");
-if (gSujetSel) {
-  const a = document.createElement("option");
-  a.value = "";
-  a.textContent = "Auto (deviner)";
-  gSujetSel.appendChild(a);
-  MATIERES.forEach((p) => {
-    const o = document.createElement("option");
-    o.value = p[0];
-    o.textContent = p[1];
-    gSujetSel.appendChild(o);
-  });
-}
+if (gSujetSel) gRemplirDossiersSelect();
 
 const gLienBtn = document.getElementById("glienbtn");
 if (gLienBtn) {
