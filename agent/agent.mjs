@@ -157,8 +157,15 @@ async function generer(proposition) {
   git(["add", "pocket"]);
   git(["commit", "-m", "JARVIS : " + demande.slice(0, 100)]);
   if (GH_TOKEN && REPO_SLUG) {
-    const depot = "https://x-access-token:" + encodeURIComponent(GH_TOKEN) + "@github.com/" + REPO_SLUG + ".git";
-    git(["push", "--force", depot, branche]);
+    const basic = Buffer.from("x-access-token:" + GH_TOKEN).toString("base64");
+    git(["push", "--force", "origin", branche], {
+      env: {
+        ...process.env,
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: "http.extraheader",
+        GIT_CONFIG_VALUE_0: "AUTHORIZATION: basic " + basic,
+      },
+    });
   } else {
     git(["push", "--force", "origin", branche]);
   }
